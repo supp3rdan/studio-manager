@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Documentação do Projeto — Studio Manager</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    @page {
+      size: A4;
+      margin: 18mm 16mm 18mm 16mm;
+      @bottom-right {
+        content: counter(page);
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 9pt;
+        color: #71717a;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #18181b;
+      background-color: #ffffff;
+      line-height: 1.55;
+      font-size: 10pt;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* Header Banner */
+    .header-banner {
+      background: linear-gradient(135deg, #09090b 0%, #18181b 100%);
+      color: #fafafa;
+      padding: 24px 28px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      border-left: 6px solid #C9A84C;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-title {
+      font-size: 20pt;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #ffffff;
+    }
+
+    .header-title span {
+      color: #C9A84C;
+    }
+
+    .header-subtitle {
+      font-size: 10pt;
+      color: #a1a1aa;
+      margin-top: 4px;
+      max-width: 520px;
+    }
+
+    .header-badge {
+      background: rgba(201, 168, 76, 0.15);
+      border: 1px solid rgba(201, 168, 76, 0.35);
+      color: #E8C97A;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 8.5pt;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    h2 {
+      font-size: 13pt;
+      font-weight: 700;
+      color: #09090b;
+      margin-top: 22px;
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 1.5px solid #e4e4e7;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      page-break-after: avoid;
+    }
+
+    h2 .num {
+      background: #C9A84C;
+      color: #09090b;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9pt;
+      font-weight: 800;
+    }
+
+    h3 {
+      font-size: 10.5pt;
+      font-weight: 700;
+      color: #27272a;
+      margin-top: 14px;
+      margin-bottom: 6px;
+      page-break-after: avoid;
+    }
+
+    p {
+      margin-bottom: 8px;
+      color: #3f3f46;
+      font-size: 9.5pt;
+    }
+
+    ul, ol {
+      margin-left: 20px;
+      margin-bottom: 10px;
+      color: #3f3f46;
+      font-size: 9.5pt;
+    }
+
+    li {
+      margin-bottom: 4px;
+    }
+
+    /* Callout Card */
+    .callout {
+      background: #fafafa;
+      border: 1px solid #e4e4e7;
+      border-left: 4px solid #C9A84C;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin: 12px 0;
+      page-break-inside: avoid;
+    }
+
+    .callout-title {
+      font-weight: 700;
+      color: #09090b;
+      font-size: 9.5pt;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Code Blocks */
+    pre, code {
+      font-family: 'JetBrains Mono', Consolas, Monaco, monospace;
+    }
+
+    code {
+      background-color: #f4f4f5;
+      color: #09090b;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-size: 8.5pt;
+      border: 1px solid #e4e4e7;
+    }
+
+    pre {
+      background: #18181b;
+      color: #fafafa;
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 8.5pt;
+      line-height: 1.45;
+      margin: 8px 0 12px 0;
+      overflow-x: auto;
+      page-break-inside: avoid;
+      border-left: 3px solid #C9A84C;
+    }
+
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      border: none;
+      font-size: 8.5pt;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 16px 0;
+      font-size: 9pt;
+      page-break-inside: avoid;
+    }
+
+    th {
+      background-color: #f4f4f5;
+      color: #09090b;
+      font-weight: 700;
+      text-align: left;
+      padding: 8px 10px;
+      border: 1px solid #e4e4e7;
+      font-size: 8.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    td {
+      padding: 7px 10px;
+      border: 1px solid #e4e4e7;
+      color: #3f3f46;
+      vertical-align: top;
+    }
+
+    tr:nth-child(even) td {
+      background-color: #fafafa;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 8pt;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .badge-gold {
+      background-color: rgba(201, 168, 76, 0.15);
+      color: #856404;
+      border: 1px solid rgba(201, 168, 76, 0.3);
+    }
+
+    .badge-green {
+      background-color: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+
+    .badge-gray {
+      background-color: #f4f4f5;
+      color: #52525b;
+      border: 1px solid #e4e4e7;
+    }
+
+    .grid-two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 10px 0;
+      page-break-inside: avoid;
+    }
+
+    .feature-box {
+      border: 1px solid #e4e4e7;
+      background: #fafafa;
+      padding: 10px 14px;
+      border-radius: 8px;
+    }
+
+    .feature-box strong {
+      display: block;
+      color: #09090b;
+      font-size: 9.5pt;
+      margin-bottom: 2px;
+    }
+
+    .feature-box p {
+      font-size: 8.5pt;
+      color: #52525b;
+      margin-bottom: 0;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+
+    .footer-note {
+      margin-top: 24px;
+      padding-top: 12px;
+      border-top: 1px solid #e4e4e7;
+      font-size: 8pt;
+      color: #71717a;
+      display: flex;
+      justify-content: space-between;
+      page-break-inside: avoid;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header Banner -->
+  <div class="header-banner">
+    <div>
+      <div class="header-title">Studio <span>Manager</span> 🌟</div>
+      <div class="header-subtitle">
+        Documentação Técnica e Operacional — Sistema de Gestão para Estúdios de Beleza e Estética
+      </div>
+    </div>
+    <div class="header-badge">Arquitetura & Especificação</div>
+  </div>
+
+  <!-- 1. Como Executar o Projeto Quando Instalado -->
+  <h2><span class="num">1</span> Como Executar o Projeto Quando Instalado</h2>
+  <p>Siga os passos abaixo para configurar o ambiente e executar o sistema localmente em modo de desenvolvimento ou produção.</p>
+
+  <div class="callout">
+    <div class="callout-title">📋 Pré-requisitos</div>
+    <ul>
+      <li><strong>Node.js</strong>: Versão 18.x ou superior (testado e certificado no Node.js v24).</li>
+      <li><strong>Gerenciador de Pacotes</strong>: <code>npm</code> (incluso no Node), <code>yarn</code> ou <code>pnpm</code>.</li>
+      <li><strong>Projeto Supabase</strong>: Instância PostgreSQL ativa criada no <a href="https://supabase.com" style="color: #856404; text-decoration: none;">supabase.com</a>.</li>
+    </ul>
+  </div>
+
+  <h3>Passo 1: Variáveis de Ambiente</h3>
+  <p>Na pasta raiz do projeto (<code>studio-manager</code>), crie o arquivo <code>.env.local</code> duplicando o modelo fornecido:</p>
+  <pre><code>cp .env.example .env.local</code></pre>
+  <p>Edite o arquivo <code>.env.local</code> preenchendo as chaves do seu projeto Supabase (localizadas em <strong>Project Settings → API</strong>):</p>
+  <pre><code>NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto-id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-anon-key-aqui</code></pre>
+
+  <h3>Passo 2: Configuração do Banco de Dados no Supabase</h3>
+  <ol>
+    <li>Acesse o painel do seu projeto no <strong>Supabase</strong> e clique na aba <strong>SQL Editor</strong>.</li>
+    <li>Abra o arquivo <code>supabase/migrations/001_initial_schema.sql</code> localizado no projeto.</li>
+    <li>Copie todo o conteúdo SQL, cole no editor do Supabase e clique em <strong>Run</strong>.</li>
+  </ol>
+  <p style="font-size: 8.5pt; color: #71717a;">
+    <em>Este script provisionará os ENUMs de categorias e status, as tabelas <code>clientes</code>, <code>servicos</code> e <code>agendamentos</code>, índices relacionais e as políticas de segurança Row Level Security (RLS).</em>
+  </p>
+
+  <h3>Passo 3: Criar Usuário de Acesso</h3>
+  <p>No painel do Supabase, acesse <strong>Authentication → Users</strong>, clique em <strong>Add User → Create User</strong> e cadastre seu e-mail e senha de acesso.</p>
+
+  <h3>Passo 4: Comandos de Execução</h3>
+  <div class="grid-two">
+    <div class="feature-box">
+      <strong>Modo Desenvolvimento (Dev)</strong>
+      <p>Com Hot Reloading ativado:</p>
+      <pre style="margin-top: 6px; padding: 6px 10px;"><code>npm run dev</code></pre>
+      <p>Acesse: <code>http://localhost:3000</code></p>
+    </div>
+    <div class="feature-box">
+      <strong>Modo Produção (Build)</strong>
+      <p>Compilação estática e SSR otimizada:</p>
+      <pre style="margin-top: 6px; padding: 6px 10px;"><code>npm run build
+npm run start</code></pre>
+      <p>Build validado com código de saída 0.</p>
+    </div>
+  </div>
+
+  <!-- Page Break for clean printing -->
+  <div class="page-break"></div>
+
+  <!-- 2. Tecnologias Utilizadas -->
+  <h2><span class="num">2</span> Tecnologias Utilizadas (Stack Tecnológico)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 25%;">Camada</th>
+        <th style="width: 25%;">Tecnologia</th>
+        <th>Papel e Justificativa</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Front-end</strong></td>
+        <td>Next.js 14 (App Router) + React 18</td>
+        <td>Renderização otimizada (SSR/SSG), roteamento modular, páginas estáticas e suporte a Edge Middleware.</td>
+      </tr>
+      <tr>
+        <td><strong>Linguagem</strong></td>
+        <td>TypeScript 5</td>
+        <td>Tipagem estática ponta a ponta garantindo integridade de dados e ausência de erros em runtime.</td>
+      </tr>
+      <tr>
+        <td><strong>Design & UI</strong></td>
+        <td>Tailwind CSS + Shadcn / Radix UI</td>
+        <td>Design system minimalista com a paleta <em>Dark & Gold</em> (preto profundo <code>#0A0A0A</code> e ouro metálico <code>#C9A84C</code>) e acessibilidade WAI-ARIA.</td>
+      </tr>
+      <tr>
+        <td><strong>Gráficos</strong></td>
+        <td>Recharts</td>
+        <td>Exibição gráfica responsiva para faturamento mensal (BarChart) e canais de pagamento (PieChart).</td>
+      </tr>
+      <tr>
+        <td><strong>Formulários</strong></td>
+        <td>React Hook Form + Zod</td>
+        <td>Validação rigorosa de esquemas no cliente, alta performance e auto-fill dinâmico.</td>
+      </tr>
+      <tr>
+        <td><strong>Back-end & DB</strong></td>
+        <td>Supabase (PostgreSQL)</td>
+        <td>Persistência com tipagem relacional, triggers, índices otimizados e Supabase Auth integrado.</td>
+      </tr>
+      <tr>
+        <td><strong>Feedback</strong></td>
+        <td>Sonner (Toasts)</td>
+        <td>Notificações visuais e alertas de sucesso/erro integrados ao tema visual.</td>
+      </tr>
+      <tr>
+        <td><strong>Deploy / CI/CD</strong></td>
+        <td>Vercel</td>
+        <td>Deploy contínuo conectado ao repositório Git com distribuição global via Edge Network.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- 3. Arquitetura da Aplicação -->
+  <h2><span class="num">3</span> Arquitetura e Estrutura de Pastas</h2>
+  <pre><code>studio-manager/
+├── app/
+│   ├── (auth)/login/page.tsx             # Tela de login responsiva Dark & Gold
+│   ├── (dashboard)/
+│   │   ├── layout.tsx                   # Layout protegido (Sidebar + Header autenticado)
+│   │   ├── dashboard/page.tsx           # Painel analítico financeiro (RF04)
+│   │   ├── clientes/
+│   │   │   ├── page.tsx                 # Listagem e busca em tempo real (RF01)
+│   │   │   └── [id]/page.tsx            # Perfil do cliente e histórico de atendimentos
+│   │   ├── servicos/page.tsx            # Catálogo de procedimentos agrupado (RF02)
+│   │   └── agendamentos/page.tsx        # Agenda transacional com filtros (RF03)
+│   ├── api/auth/callback/route.ts       # Endpoint para troca de tokens de sessão
+│   ├── globals.css                      # Cores CSS Variables e tema Dark & Gold
+│   └── layout.tsx                       # Layout raiz com Toaster e configurações globais
+├── components/
+│   ├── ui/                              # Primitivos UI (Button, Card, Dialog, Table, etc.)
+│   ├── layout/                          # Sidebar de navegação e Header com logout
+│   ├── clientes/                        # Modal de formulário para Clientes
+│   ├── servicos/                        # Modal de formulário para Serviços
+│   ├── agendamentos/                    # Modal com auto-preenchimento de valores
+│   └── dashboard/                       # Cards de indicadores e gráficos Recharts
+├── lib/
+│   ├── supabase/                        # Clients do Supabase (Client-side e Server-side)
+│   ├── queries/                         # Consultas SQL tipadas e regras de agregação
+│   └── utils.ts                         # Formatadores BRL, telefone e badges semânticos
+├── middleware.ts                         # Interceptador de rotas para proteção de acesso
+├── supabase/migrations/                  # Scripts SQL versionados para o banco de dados
+├── types/database.ts                    # Definições de tipos TypeScript do banco de dados
+└── tailwind.config.ts                   # Configuração e tema visual customizado</code></pre>
+
+  <!-- Page Break for clean printing -->
+  <div class="page-break"></div>
+
+  <!-- 4. Módulos do Sistema -->
+  <h2><span class="num">4</span> Módulos do Sistema e Funcionalidades</h2>
+
+  <h3>🔐 Autenticação e Controle de Acesso (RNF02)</h3>
+  <p>Implementado via <code>middleware.ts</code> e Supabase Auth. Rotas privadas só são renderizadas após validação do token de sessão via cookies seguros. Usuários não autenticados são automaticamente redirecionados para a rota <code>/login</code>.</p>
+
+  <h3>👥 Módulo de Clientes (RF01 — <code>/clientes</code> e <code>/clientes/[id]</code>)</h3>
+  <ul>
+    <li><strong>Gestão Completa (CRUD)</strong>: Cadastro e edição de clientes com atributos: ID (UUID), Nome, WhatsApp e timestamp de cadastro.</li>
+    <li><strong>Busca em Tempo Real</strong>: Campo de pesquisa responsivo com filtro instantâneo por nome ou telefone.</li>
+    <li><strong>Exclusão Segura</strong>: Confirmação modal com componente <code>AlertDialog</code> antes da exclusão definitiva.</li>
+    <li><strong>Perfil e Histórico (<code>/clientes/[id]</code>)</strong>: Ao clicar no nome do cliente, abre-se a visão consolidada com quantidade total de procedimentos, total investido (R$) e a tabela completa com seu histórico de atendimentos.</li>
+  </ul>
+
+  <h3>✂️ Módulo de Serviços (RF02 — <code>/servicos</code>)</h3>
+  <ul>
+    <li><strong>Catálogo Dinâmico</strong>: Procedimentos organizados em cards categorizados em: <em>Cílios</em>, <em>Sobrancelhas</em> e <em>Depilação</em>.</li>
+    <li><strong>Tipo de Precificação</strong>: Suporte aos tipos <em>Tabela Padrão</em> e <em>Promoção</em> (identificado com badge dourado de destaque).</li>
+    <li><strong>Preço Base</strong>: Armazenamento do preço original utilizado como valor inicial dinâmico na agenda.</li>
+  </ul>
+
+  <h3>📅 Módulo de Agendamentos (RF03 — <code>/agendamentos</code>)</h3>
+  <ul>
+    <li><strong>Agenda Transacional</strong>:
+      <ul>
+        <li>Data e Horário com seletor <code>datetime-local</code>.</li>
+        <li>Chaves Estrangeiras vinculadas: Cliente (RF01) e Serviço (RF02).</li>
+        <li><strong>Formas de Pagamento</strong>: <em>Pix</em>, <em>Cartão Débito</em>, <em>Cartão Crédito</em>, <em>Crédito Bemol</em> e <em>Dinheiro</em>.</li>
+        <li><strong>Status</strong>: <em>Agendado</em>, <em>Confirmado</em>, <em>Concluído</em>, <em>Cancelado</em> e <em>Não Compareceu</em>.</li>
+        <li><strong>Local</strong>: <em>Studio</em> ou <em>Domicílio</em>.</li>
+        <li>Campo para Observações adicionais.</li>
+      </ul>
+    </li>
+    <li><strong>Filtro Rápido</strong>: Dropdown permitindo filtrar a listagem pelo status do atendimento.</li>
+  </ul>
+
+  <h3>📊 Painel Analítico / Dashboard (RF04 — <code>/dashboard</code>)</h3>
+  <ul>
+    <li><strong>4 Indicadores Principais (Cards)</strong>:
+      <ul>
+        <li><strong>Faturamento Realizado</strong>: Somatório restrito aos registros com status <code>Concluído</code>.</li>
+        <li><strong>Faturamento Previsto</strong>: Somatório das receitas de atendimentos <code>Agendado</code> e <code>Confirmado</code>.</li>
+        <li><strong>Volume Concluído</strong>: Quantidade total de atendimentos realizados.</li>
+        <li><strong>Volume Pendente</strong>: Quantidade de procedimentos agendados aguardando execução.</li>
+      </ul>
+    </li>
+    <li><strong>Gráfico Mensal (Recharts BarChart)</strong>: Evolução do faturamento dos últimos 6 meses com tooltip e moeda formatada em R$.</li>
+    <li><strong>Gráfico de Canais (Recharts Donut)</strong>: Proporção de faturamento por método de pagamento.</li>
+  </ul>
+
+  <!-- 5. Regras de Negócio e Segurança -->
+  <h2><span class="num">5</span> Regras de Negócio e Segurança de Dados</h2>
+  
+  <div class="callout">
+    <div class="callout-title">⚡ RN01 — Preenchimento Dinâmico de Valores</div>
+    <p>No formulário de agendamento (<code>agendamento-form.tsx</code>), ao selecionar um serviço, um hook <code>useEffect</code> captura o evento e preenche automaticamente o campo <strong>"Valor Final"</strong> com o <code>preco_base</code> do catálogo. O campo permanece desbloqueado para que o profissional possa aplicar descontos ou taxas extras livremente.</p>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">🎯 RN02 — Validação e Acurácia de Métricas Financeiras</div>
+    <p>Todas as consultas financeiras (em <code>lib/queries/agendamentos.ts</code>) excluem obrigatoriamente qualquer agendamento com status <code>Cancelado</code> ou <code>Não Compareceu</code>. Isso impede a distorção do faturamento real e previsto.</p>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">🛡️ RNF01 — Row Level Security (RLS) no PostgreSQL</div>
+    <p>Todas as tabelas do banco possuem RLS ativada com políticas de <code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code> e <code>DELETE</code> vinculadas ao identificador do usuário autenticado (<code>auth.uid() = user_id</code>), garantindo privacidade e isolamento total dos dados.</p>
+  </div>
+
+  <div class="footer-note">
+    <span>Studio Manager — Aplicação Web Next.js 14 & Supabase</span>
+    <span>Documentação Oficial v1.0.0</span>
+  </div>
+
+</body>
+</html>
