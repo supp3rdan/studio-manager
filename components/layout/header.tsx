@@ -15,9 +15,10 @@ const routeLabels: Record<string, string> = {
 
 interface HeaderProps {
   user: User;
+  onMenuClick?: () => void;
 }
 
-export function Header({ user }: HeaderProps) {
+export function Header({ user, onMenuClick }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -36,8 +37,13 @@ export function Header({ user }: HeaderProps) {
 
   return (
     <header className="flex items-center justify-between px-4 md:px-6 h-16 border-b border-border bg-surface shrink-0">
-      <div className="flex items-center gap-4">
-        <button className="md:hidden p-2 rounded-lg hover:bg-white/5 transition-colors">
+      <div className="flex items-center gap-3">
+        {/* Hamburger — mobile only */}
+        <button
+          onClick={onMenuClick}
+          className="md:hidden p-2 rounded-lg hover:bg-white/5 transition-colors"
+          aria-label="Abrir menu"
+        >
           <Menu className="w-5 h-5 text-muted-foreground" />
         </button>
         <h1 className="text-lg font-semibold text-foreground">{pageTitle}</h1>
