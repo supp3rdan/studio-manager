@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Loader2, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 const loginSchema = z.object({
@@ -137,8 +138,11 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-6">
-          Acesso restrito · Studio Manager
+        <p className="text-center text-sm text-muted-foreground mt-6">
+          Não tem uma conta?{" "}
+          <Link href="/register" className="text-[#C9A84C] hover:underline font-medium">
+            Criar conta
+          </Link>
         </p>
       </div>
     </div>
