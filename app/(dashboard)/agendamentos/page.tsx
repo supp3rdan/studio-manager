@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2, CalendarDays, Filter } from "lucide-react";
+import { Plus, Pencil, Trash2, CalendarDays, Filter, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,8 +30,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AgendamentoForm } from "@/components/agendamentos/agendamento-form";
-import { getAgendamentos, deleteAgendamento } from "@/lib/queries/agendamentos";
+import { getAgendamentos, deleteAgendamento, updateAgendamento } from "@/lib/queries/agendamentos";
 import {
   formatCurrency,
   formatDateTime,
@@ -40,15 +41,109 @@ import {
 } from "@/lib/utils";
 import type { Agendamento, StatusAgendamento } from "@/types/database";
 
-const STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: "all", label: "Todos os status" },
-  { value: "Agendado", label: "Agendado" },
-  { value: "Confirmado", label: "Confirmado" },
-  { value: "Concluído", label: "Concluído" },
-  { value: "Cancelado", label: "Cancelado" },
-  { value: "Não Compareceu", label: "Não Compareceu" },
+const ALL_STATUSES: StatusAgendamento[] = [
+  "Agendado",
+  "Confirmado",
+  "Concluído",
+  "Cancelado",
+  "Não Compareceu",
 ];
 
+const STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "all", label: "Todos os status" },
+  ...ALL_STATUSES.map((s) => ({ value: s, label: s })),
+];
+
+// ── Inline status selector per row ─────────────────────────────────────────
+function StatusSelector({
+  agendamento,
+  onUpdated,
+}: {
+  agendamento: Agendamento;
+  onUpdated: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleSelect = async (status: StatusAgendamento) => {
+    if (status === agendamento.status) {
+      setOpen(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      await updateAgendamento(agendamento.id, { status });
+      toast.success(`Status alterado para "${status}"`);
+      onUpdated();
+    } catch {
+      toast.error("Erro ao alterar status");
+    } finally {
+      setLoading(false);
+      setOpen(false);
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          disabled={loading}
+          className={cn(
+            "inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border transition-opacity",
+            "hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/30",
+            loading && "opacity-50 pointer-events-none",
+            getStatusColor(agendamento.status)
+          )}
+        >
+          {agendamento.status}
+          <ChevronDown className="w-3 h-3 opacity-60 shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="p-1.5 w-48">
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wide px-2 pb-1">
+          Alterar status
+        </p>
+        {ALL_STATUSES.map((s) => {
+          const isActive = s === agendamento.status;
+          return (
+            <button
+              key={s}
+              onClick={() => handleSelect(s)}
+              className={cn(
+                "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-left transition-colors",
+                isActive
+                  ? "bg-white/5 cursor-default"
+                  : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+              )}
+            >
+              {/* Radio-style indicator */}
+              <span
+                className={cn(
+                  "w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+                  isActive ? "border-[#C9A84C]" : "border-border"
+                )}
+              >
+                {isActive && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#C9A84C]" />
+                )}
+              </span>
+              <span
+                className={cn(
+                  "px-1.5 py-0.5 rounded-full border text-[10px]",
+                  getStatusColor(s)
+                )}
+              >
+                {s}
+              </span>
+            </button>
+          );
+        })}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ── Page ────────────────────────────────────────────────────────────────────
 export default function AgendamentosPage() {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -170,13 +265,9 @@ export default function AgendamentosPage() {
                   <TableCell className="text-sm text-muted-foreground">
                     {ag.local}
                   </TableCell>
+                  {/* ── Status (inline selector) ── */}
                   <TableCell>
-                    <span className={cn(
-                      "text-xs font-medium px-2 py-0.5 rounded-full border",
-                      getStatusColor(ag.status)
-                    )}>
-                      {ag.status}
-                    </span>
+                    <StatusSelector agendamento={ag} onUpdated={load} />
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
