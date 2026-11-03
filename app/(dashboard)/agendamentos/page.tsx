@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2, CalendarDays, Filter, ChevronDown } from "lucide-react";
+import { Plus, Pencil, Trash2, CalendarDays, Filter, ChevronDown, FileDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +33,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AgendamentoForm } from "@/components/agendamentos/agendamento-form";
 import { getAgendamentos, deleteAgendamento, updateAgendamento } from "@/lib/queries/agendamentos";
+import { generateAgendamentosPDF } from "@/lib/pdf-report";
 import {
   formatCurrency,
   formatDateTime,
@@ -116,7 +117,6 @@ function StatusSelector({
                   : "text-muted-foreground hover:text-foreground hover:bg-white/5"
               )}
             >
-              {/* Radio-style indicator */}
               <span
                 className={cn(
                   "w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
@@ -148,6 +148,7 @@ export default function AgendamentosPage() {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingAgendamento, setEditingAgendamento] = useState<Agendamento | null>(null);
 
@@ -178,6 +179,22 @@ export default function AgendamentosPage() {
     }
   };
 
+  const handleGeneratePDF = async () => {
+    if (filtered.length === 0) {
+      toast.error("Nenhum agendamento para exportar.");
+      return;
+    }
+    setIsGeneratingPDF(true);
+    try {
+      await generateAgendamentosPDF(filtered);
+      toast.success("Relatório gerado e baixado com sucesso!");
+    } catch (err: any) {
+      toast.error("Erro ao gerar relatório", { description: err?.message });
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -188,10 +205,24 @@ export default function AgendamentosPage() {
             {agendamentos.length} agendamento{agendamentos.length !== 1 ? "s" : ""} no total
           </p>
         </div>
-        <Button onClick={() => setFormOpen(true)} className="w-full sm:w-auto">
-          <Plus className="w-4 h-4" />
-          Novo Agendamento
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button
+            variant="outline"
+            onClick={handleGeneratePDF}
+            disabled={isGeneratingPDF || isLoading}
+            className="w-full sm:w-auto"
+          >
+            {isGeneratingPDF ? (
+              <><Loader2 className="w-4 h-4 animate-spin" />Gerando...</>
+            ) : (
+              <><FileDown className="w-4 h-4" />Gerar relatório de agendamentos</>
+            )}
+          </Button>
+          <Button onClick={() => setFormOpen(true)} className="w-full sm:w-auto">
+            <Plus className="w-4 h-4" />
+            Novo Agendamento
+          </Button>
+        </div>
       </div>
 
       {/* Filter */}
@@ -209,6 +240,11 @@ export default function AgendamentosPage() {
             ))}
           </SelectContent>
         </Select>
+        {statusFilter !== "all" && (
+          <p className="text-xs text-muted-foreground">
+            O relatório exportará apenas os <strong className="text-foreground">{filtered.length}</strong> agendamentos visíveis.
+          </p>
+        )}
       </div>
 
       {/* Table */}
@@ -265,7 +301,6 @@ export default function AgendamentosPage() {
                   <TableCell className="text-sm text-muted-foreground">
                     {ag.local}
                   </TableCell>
-                  {/* ── Status (inline selector) ── */}
                   <TableCell>
                     <StatusSelector agendamento={ag} onUpdated={load} />
                   </TableCell>
