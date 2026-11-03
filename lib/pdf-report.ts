@@ -37,7 +37,8 @@ export async function generateAgendamentosPDF(
   // Dynamic import to avoid SSR issues
   const jsPDFModule = await import("jspdf");
   const jsPDF = jsPDFModule.default;
-  await import("jspdf-autotable");
+  // Import autoTable as standalone function (prototype augmentation unreliable with dynamic imports)
+  const { default: autoTable } = await import("jspdf-autotable");
 
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
@@ -153,8 +154,8 @@ export async function generateAgendamentosPDF(
     return map[status] ?? [120, 120, 120];
   }
 
-  // @ts-ignore — jspdf-autotable augments jsPDF prototype
-  doc.autoTable({
+  // Call autoTable as standalone function (works correctly with dynamic imports)
+  autoTable(doc, {
     startY: tableStartY,
     head: [[
       "Data / Hora",
@@ -238,3 +239,4 @@ export async function generateAgendamentosPDF(
   const filename = `relatorio-agendamentos-${format(new Date(), "yyyy-MM-dd")}.pdf`;
   doc.save(filename);
 }
+
