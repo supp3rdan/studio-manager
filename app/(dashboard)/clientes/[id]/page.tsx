@@ -33,6 +33,7 @@ import {
   formatCurrency,
   formatDateTime,
   formatWhatsApp,
+  getWhatsAppUrl,
   getStatusColor,
   cn,
 } from "@/lib/utils";
@@ -122,10 +123,23 @@ export default function ClienteDetailPage() {
           <CardContent className="space-y-4">
             <div className="space-y-1">
               <span className="text-xs text-muted-foreground">WhatsApp</span>
-              <p className="text-sm font-medium text-foreground flex items-center gap-2">
-                <Phone className="w-4 h-4 text-[#C9A84C]" />
-                {cliente.whatsapp ? formatWhatsApp(cliente.whatsapp) : "Não informado"}
-              </p>
+              {cliente.whatsapp ? (
+                <a
+                  href={getWhatsAppUrl(cliente.whatsapp) ?? "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-medium text-foreground flex items-center gap-2 hover:text-emerald-400 hover:underline transition-colors group cursor-pointer"
+                  title="Abrir conversa no WhatsApp"
+                >
+                  <Phone className="w-4 h-4 text-emerald-500 group-hover:text-emerald-400 transition-colors" />
+                  <span>{formatWhatsApp(cliente.whatsapp)}</span>
+                </a>
+              ) : (
+                <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-[#C9A84C]" />
+                  Não informado
+                </p>
+              )}
             </div>
 
             <div className="space-y-1">

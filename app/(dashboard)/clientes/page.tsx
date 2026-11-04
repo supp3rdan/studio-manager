@@ -30,7 +30,7 @@ import {
   getClientes,
   deleteCliente,
 } from "@/lib/queries/clientes";
-import { formatWhatsApp } from "@/lib/utils";
+import { formatWhatsApp, getWhatsAppUrl } from "@/lib/utils";
 import type { Cliente } from "@/types/database";
 
 export default function ClientesPage() {
@@ -147,10 +147,16 @@ export default function ClientesPage() {
                   </TableCell>
                   <TableCell>
                     {cliente.whatsapp ? (
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <Phone className="w-3.5 h-3.5" />
-                        {formatWhatsApp(cliente.whatsapp)}
-                      </div>
+                      <a
+                        href={getWhatsAppUrl(cliente.whatsapp) ?? "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-emerald-400 hover:underline transition-colors group cursor-pointer"
+                        title="Conversar no WhatsApp"
+                      >
+                        <Phone className="w-3.5 h-3.5 text-emerald-500/80 group-hover:text-emerald-400 transition-colors" />
+                        <span>{formatWhatsApp(cliente.whatsapp)}</span>
+                      </a>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}

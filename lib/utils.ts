@@ -36,6 +36,16 @@ export function formatWhatsApp(whatsapp: string | null | undefined): string {
   return whatsapp;
 }
 
+export function getWhatsAppUrl(whatsapp: string | null | undefined): string | null {
+  if (!whatsapp) return null;
+  const digits = whatsapp.replace(/\D/g, "");
+  if (!digits) return null;
+  // Se for número brasileiro sem DDI (10 ou 11 dígitos), prefixa com 55
+  const fullNumber =
+    digits.length === 10 || digits.length === 11 ? `55${digits}` : digits;
+  return `https://wa.me/${fullNumber}`;
+}
+
 export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
     Agendado: "text-blue-400 bg-blue-400/10 border-blue-400/20",
