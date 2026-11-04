@@ -40,9 +40,17 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterForm) => {
     setIsLoading(true);
     try {
+      const emailRedirectTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/api/auth/callback?next=/email-confirmado`
+          : undefined;
+
       const { error } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
+        options: {
+          emailRedirectTo,
+        },
       });
 
       if (error) {
@@ -99,12 +107,12 @@ export default function RegisterPage() {
                 Conta criada com sucesso!
               </h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Verifique seu e-mail para confirmar o cadastro.
-                Após confirmar, você já pode fazer login.
+                Enviamos um link de confirmação para o seu e-mail.
+                Basta clicar no link recebido para ativar sua conta e acessar o painel.
               </p>
               <Link
                 href="/login"
-                className="inline-flex items-center justify-center w-full py-3 px-6 rounded-lg font-semibold text-sm bg-[#C9A84C] hover:bg-[#E8C97A] text-[#0A0A0A] transition-all duration-200 mt-2"
+                className="inline-flex items-center justify-center w-full py-3 px-6 rounded-lg font-semibold text-sm bg-[#C9A84C] hover:bg-[#E8C97A] text-[#0A0A0A] transition-all duration-200 mt-2 shadow-lg shadow-[#C9A84C]/20"
               >
                 Ir para o login
               </Link>
@@ -215,4 +223,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-
