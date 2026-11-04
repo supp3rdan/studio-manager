@@ -39,15 +39,33 @@ export default function LoginPage() {
         if (error.message === "Invalid login credentials") {
           description = "E-mail ou senha incorretos.";
         } else if (error.message.toLowerCase().includes("email not confirmed")) {
-          description = "E-mail não confirmado. Marque 'Auto Confirm' no usuário dentro do Supabase.";
+          description = "E-mail não confirmado. Verifique sua caixa de entrada.";
         }
 
         toast.error("Falha no login", { description });
         return;
       }
 
-      toast.success("Bem-vinda de volta! ✨");
-      window.location.href = "/dashboard";
+      // Detect role to redirect to right portal
+      let target = "/dashboard";
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: perfil } = await supabase
+          .from("perfis")
+          .select("tipo_usuario")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (perfil?.tipo_usuario === "cliente") {
+          target = "/cliente/agendamentos";
+        }
+      }
+
+      toast.success("Bem-vindo(a) de volta! ✨");
+      window.location.href = target;
     } finally {
       setIsLoading(false);
     }
@@ -70,7 +88,7 @@ export default function LoginPage() {
             Studio Manager
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Gestão profissional para seu estúdio
+            Gestão profissional para estúdios e clientes
           </p>
         </div>
 
@@ -136,13 +154,20 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          <p className="text-center text-sm text-muted-foreground mt-6">
+            Não tem uma conta?{" "}
+            <Link
+              href="/register"
+              className="text-[#C9A84C] hover:underline font-medium"
+            >
+              Criar conta
+            </Link>
+          </p>
         </div>
 
-        <p className="text-center text-sm text-muted-foreground mt-6">
-          Não tem uma conta?{" "}
-          <Link href="/register" className="text-[#C9A84C] hover:underline font-medium">
-            Criar conta
-          </Link>
+        <p className="text-center text-xs text-muted-foreground mt-6">
+          Acesso seguro · Studio Manager
         </p>
       </div>
     </div>

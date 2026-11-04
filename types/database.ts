@@ -6,6 +6,7 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+export type TipoUsuario = "profissional" | "cliente";
 export type CategoriaServico = "Cílios" | "Sobrancelhas" | "Depilação";
 export type TipoServico = "Tabela Padrão" | "Promoção";
 export type StatusAgendamento =
@@ -21,6 +22,18 @@ export type FormaPagamento =
   | "Crédito Bemol"
   | "Dinheiro";
 export type LocalAgendamento = "Studio" | "Domicílio";
+
+export interface Perfil {
+  id: string;
+  tipo_usuario: TipoUsuario;
+  nome: string;
+  whatsapp: string | null;
+  nome_studio: string | null;
+  codigo_profissional: string | null;
+  email: string | null;
+  criado_em: string;
+  atualizado_em: string;
+}
 
 export interface Cliente {
   id: string;
@@ -47,6 +60,7 @@ export interface Agendamento {
   id: string;
   user_id: string;
   cliente_id: string | null;
+  cliente_user_id?: string | null;
   servico_id: string | null;
   data_hora: string;
   valor_final: number | null;
@@ -59,6 +73,7 @@ export interface Agendamento {
   // Joined fields
   clientes?: Pick<Cliente, "id" | "nome" | "whatsapp">;
   servicos?: Pick<Servico, "id" | "nome" | "categoria" | "preco_base">;
+  profissional?: Pick<Perfil, "id" | "nome" | "nome_studio" | "whatsapp" | "codigo_profissional">;
 }
 
 // Dashboard types

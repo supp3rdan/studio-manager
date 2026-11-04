@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { TrendingUp, CalendarCheck, Clock, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +13,7 @@ import {
   getFaturamentoMensal,
   getPagamentoPorMetodo,
 } from "@/lib/queries/agendamentos";
+import { getPerfilAtual } from "@/lib/queries/perfis";
 import { formatCurrency } from "@/lib/utils";
 import type {
   DashboardMetrics,
@@ -20,6 +22,7 @@ import type {
 } from "@/types/database";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [faturamento, setFaturamento] = useState<FaturamentoMensal[]>([]);
   const [pagamentos, setPagamentos] = useState<PagamentoPorMetodo[]>([]);
@@ -27,6 +30,12 @@ export default function DashboardPage() {
 
   const load = useCallback(async () => {
     try {
+      const perfil = await getPerfilAtual();
+      if (perfil?.tipo_usuario === "cliente") {
+        router.replace("/cliente/agendamentos");
+        return;
+      }
+
       const [m, f, p] = await Promise.all([
         getDashboardMetrics(),
         getFaturamentoMensal(),
@@ -40,9 +49,11 @@ export default function DashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [router]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
     <div className="space-y-6">

@@ -53,7 +53,10 @@ export async function middleware(request: NextRequest) {
   const isPublicPath =
     isAuthPage ||
     pathname.startsWith("/email-confirmado") ||
+    pathname.startsWith("/p/") ||
+    pathname.startsWith("/buscar") ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/agendamentos/publico") ||
     pathname === "/";
 
   // Redirect unauthenticated users to login (RNF02)
