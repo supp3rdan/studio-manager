@@ -9,6 +9,17 @@ function getCleanUrl() {
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
+  const pathname = request.nextUrl.pathname;
+
+  // Static / PWA assets pass through without auth check
+  if (
+    pathname === "/sw.js" ||
+    pathname === "/manifest.json" ||
+    pathname.startsWith("/icons/")
+  ) {
+    return supabaseResponse;
+  }
+
   const supabase = createServerClient(
     getCleanUrl(),
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -36,9 +47,14 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const isAuthPage =
-    request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/register");
-  const isPublicPath = isAuthPage || request.nextUrl.pathname === "/";
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register");
+
+  const isPublicPath =
+    isAuthPage ||
+    pathname.startsWith("/email-confirmado") ||
+    pathname.startsWith("/api/auth") ||
+    pathname === "/";
 
   // Redirect unauthenticated users to login (RNF02)
   if (!user && !isPublicPath) {
@@ -47,7 +63,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Redirect authenticated users away from login
+  // Redirect authenticated users away from auth pages
   if (user && isAuthPage) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/dashboard";
@@ -59,6 +75,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
