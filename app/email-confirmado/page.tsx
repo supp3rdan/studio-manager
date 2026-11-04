@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 
 export default function EmailConfirmadoPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isClientUser, setIsClientUser] = useState(false);
   const [isError, setIsError] = useState(false);
   const supabase = createClient();
 
@@ -20,11 +21,27 @@ export default function EmailConfirmadoPage() {
     }
 
     // Check if user session was already established
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsAuthenticated(!!session);
-    }).catch(() => {
-      setIsAuthenticated(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(async ({ data: { session } }) => {
+        if (session?.user) {
+          setIsAuthenticated(true);
+          const { data: perfil } = await supabase
+            .from("perfis")
+            .select("tipo_usuario")
+            .eq("id", session.user.id)
+            .maybeSingle();
+
+          if (perfil?.tipo_usuario === "cliente") {
+            setIsClientUser(true);
+          }
+        } else {
+          setIsAuthenticated(false);
+        }
+      })
+      .catch(() => {
+        setIsAuthenticated(false);
+      });
   }, [supabase]);
 
   return (
@@ -100,10 +117,10 @@ export default function EmailConfirmadoPage() {
                   </div>
                 ) : isAuthenticated ? (
                   <Link
-                    href="/dashboard"
+                    href={isClientUser ? "/cliente/agendamentos" : "/dashboard"}
                     className="inline-flex items-center justify-center gap-2 w-full py-3 px-6 rounded-lg font-semibold text-sm bg-[#C9A84C] hover:bg-[#E8C97A] text-[#0A0A0A] transition-all duration-200 shadow-lg shadow-[#C9A84C]/20"
                   >
-                    Acessar o Painel
+                    {isClientUser ? "Acessar Meus Agendamentos" : "Acessar o Painel"}
                     <ArrowRight className="w-4 h-4" />
                   </Link>
                 ) : (
@@ -121,10 +138,9 @@ export default function EmailConfirmadoPage() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          Studio Manager · Gestão de Estúdio de Beleza
+          Studio Manager · Gestão de Estúdio de Beleza & Agendamentos
         </p>
       </div>
     </div>
   );
 }
-

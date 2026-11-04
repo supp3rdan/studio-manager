@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -9,14 +10,26 @@ import {
   CalendarDays,
   Sparkles,
   X,
+  Search,
+  CalendarCheck,
+  Copy,
+  Check,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { getPerfilAtual } from "@/lib/queries/perfis";
+import type { Perfil } from "@/types/database";
 
-const navItems = [
+const professionalNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/clientes", label: "Clientes", icon: Users },
   { href: "/servicos", label: "Serviços", icon: Scissors },
   { href: "/agendamentos", label: "Agendamentos", icon: CalendarDays },
+];
+
+const clientNavItems = [
+  { href: "/cliente/agendamentos", label: "Meus Agendamentos", icon: CalendarCheck },
+  { href: "/buscar", label: "Buscar Profissional", icon: Search },
 ];
 
 interface SidebarProps {
@@ -26,6 +39,25 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const [perfil, setPerfil] = useState<Perfil | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    getPerfilAtual().then(setPerfil).catch(() => {});
+  }, []);
+
+  const isClient = perfil?.tipo_usuario === "cliente";
+  const navItems = isClient ? clientNavItems : professionalNavItems;
+
+  const handleCopyCode = () => {
+    if (!perfil?.codigo_profissional) return;
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const url = `${origin}/p/${perfil.codigo_profissional}`;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    toast.success("Link copiado!", { description: url });
+    setTimeout(() => setCopied(false), 2500);
+  };
 
   const NavContent = () => (
     <>
@@ -39,7 +71,9 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             <p className="font-semibold text-foreground text-sm leading-none">
               Studio Manager
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">Painel</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {isClient ? "Portal do Cliente" : "Painel Profissional"}
+            </p>
           </div>
         </div>
         {/* Close button — mobile only */}
@@ -56,9 +90,8 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navItems.map((item) => {
           const isActive =
-            item.href === "/dashboard"
-              ? pathname === "/dashboard"
-              : pathname.startsWith(item.href);
+            pathname === item.href ||
+            (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
           return (
             <Link
@@ -85,20 +118,51 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="px-6 py-4 border-t border-border">
-        <p className="text-xs text-muted-foreground">v1.0.0</p>
+      <div className="p-4 border-t border-border space-y-3">
+        {perfil?.tipo_usuario === "profissional" && perfil.codigo_profissional && (
+          <div className="p-3 rounded-xl bg-[#C9A84C]/10 border border-[#C9A84C]/25 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase font-bold text-[#C9A84C]">
+                Código
+              </span>
+              <span className="text-xs font-mono font-bold text-foreground">
+                #{perfil.codigo_profissional}
+              </span>
+            </div>
+            <button
+              onClick={handleCopyCode}
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-[11px] font-semibold bg-[#C9A84C] text-[#0A0A0A] hover:bg-[#E8C97A] transition-colors"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  Copiado!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  Copiar Link
+                </>
+              )}
+            </button>
+          </div>
+        )}
+        <div className="flex items-center justify-between text-xs text-muted-foreground px-2">
+          <span>Studio Manager</span>
+          <span>v1.2.0</span>
+        </div>
       </div>
     </>
   );
 
   return (
     <>
-      {/* ── Desktop sidebar ────────────────────────────────────── */}
+      {/* Desktop sidebar */}
       <aside className="hidden md:flex w-64 flex-col bg-surface border-r border-border shrink-0">
         <NavContent />
       </aside>
 
-      {/* ── Mobile: backdrop overlay ───────────────────────────── */}
+      {/* Mobile backdrop */}
       {isOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
@@ -107,7 +171,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         />
       )}
 
-      {/* ── Mobile: slide-in drawer ────────────────────────────── */}
+      {/* Mobile drawer */}
       <aside
         className={cn(
           "fixed top-0 left-0 z-50 h-full w-72 flex flex-col bg-surface border-r border-border transition-transform duration-300 ease-in-out md:hidden",
