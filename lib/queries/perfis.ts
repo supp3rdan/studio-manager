@@ -142,3 +142,4 @@ export async function getAgendamentosDoCliente(): Promise<Agendamento[]> {
     profissional: perfisMap.get(ag.user_id),
   }));
 }
+

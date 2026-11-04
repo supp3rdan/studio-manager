@@ -28,7 +28,6 @@ DECLARE
 BEGIN
   LOOP
     v_attempts := v_attempts + 1;
-    -- Gera número aleatório de 4 dígitos entre 1000 e 9999
     v_codigo := LPAD((FLOOR(1000 + RANDOM() * 9000))::INT::TEXT, 4, '0');
     
     SELECT EXISTS (
@@ -58,13 +57,11 @@ DECLARE
   v_nome_studio TEXT;
   v_codigo VARCHAR(4) := NULL;
 BEGIN
-  -- Extrai metadados enviados no cadastro
   v_tipo := COALESCE(NEW.raw_user_meta_data->>'tipo_usuario', 'profissional');
   v_nome := COALESCE(NEW.raw_user_meta_data->>'nome', SPLIT_PART(NEW.email, '@', 1));
   v_whatsapp := NEW.raw_user_meta_data->>'whatsapp';
   v_nome_studio := NEW.raw_user_meta_data->>'nome_studio';
   
-  -- Se for profissional, gera código único de 4 dígitos
   IF v_tipo = 'profissional' THEN
     v_codigo := public.generate_unique_codigo_profissional();
   END IF;
@@ -105,10 +102,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Remove trigger antigo se existir
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-
--- Cria o trigger na tabela auth.users
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
@@ -154,30 +148,31 @@ CREATE INDEX IF NOT EXISTS idx_perfis_codigo             ON public.perfis(codigo
 -- ============================================================
 ALTER TABLE public.perfis ENABLE ROW LEVEL SECURITY;
 
--- Perfis: Leitura pública de profissionais
 DROP POLICY IF EXISTS "perfis_public_read_profissionais" ON public.perfis;
 CREATE POLICY "perfis_public_read_profissionais" ON public.perfis
   FOR SELECT USING (tipo_usuario = 'profissional');
 
--- Perfis: Usuário pode ler seu próprio perfil (inclusive clientes)
 DROP POLICY IF EXISTS "perfis_read_own" ON public.perfis;
 CREATE POLICY "perfis_read_own" ON public.perfis
   FOR SELECT USING (auth.uid() = id);
 
--- Perfis: Usuário pode atualizar seu próprio perfil
 DROP POLICY IF EXISTS "perfis_update_own" ON public.perfis;
 CREATE POLICY "perfis_update_own" ON public.perfis
   FOR UPDATE USING (auth.uid() = id);
 
--- Perfis: Inserção do próprio perfil
 DROP POLICY IF EXISTS "perfis_insert_own" ON public.perfis;
 CREATE POLICY "perfis_insert_own" ON public.perfis
   FOR INSERT WITH CHECK (auth.uid() = id);
 
--- Serviços: Permitir leitura pública dos serviços ativos (para a página pública do profissional)
+-- Serviços: Permitir leitura pública dos serviços ativos
 DROP POLICY IF EXISTS "servicos_public_read" ON public.servicos;
 CREATE POLICY "servicos_public_read" ON public.servicos
   FOR SELECT USING (ativo = true);
+
+-- Clientes: Permitir criação de clientes na agenda
+DROP POLICY IF EXISTS "clientes_insert_publico" ON public.clientes;
+CREATE POLICY "clientes_insert_publico" ON public.clientes
+  FOR INSERT WITH CHECK (true);
 
 -- Agendamentos: Clientes logados podem ver seus agendamentos
 DROP POLICY IF EXISTS "agendamentos_select_cliente" ON public.agendamentos;
@@ -189,7 +184,140 @@ DROP POLICY IF EXISTS "agendamentos_insert_publico" ON public.agendamentos;
 CREATE POLICY "agendamentos_insert_publico" ON public.agendamentos
   FOR INSERT WITH CHECK (true);
 
+-- ============================================================
+-- 7. FUNÇÃO SEGURA (SECURITY DEFINER) PARA CRIAR AGENDAMENTO
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.criar_agendamento_publico(
+  p_codigo_profissional VARCHAR(4),
+  p_servico_id UUID,
+  p_data_hora TIMESTAMPTZ,
+  p_local TEXT,
+  p_forma_pagamento TEXT,
+  p_cliente_nome TEXT,
+  p_cliente_whatsapp TEXT,
+  p_cliente_email TEXT DEFAULT NULL,
+  p_cliente_user_id UUID DEFAULT NULL,
+  p_observacoes TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_prof RECORD;
+  v_serv RECORD;
+  v_cliente_id UUID := NULL;
+  v_clean_whatsapp TEXT;
+  v_agendamento RECORD;
+  v_forma forma_pagamento;
+  v_local local_agendamento;
+BEGIN
+  SELECT id, nome, nome_studio, email, whatsapp, codigo_profissional
+  INTO v_prof
+  FROM public.perfis
+  WHERE codigo_profissional = TRIM(p_codigo_profissional)
+    AND tipo_usuario = 'profissional';
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Profissional com código #% não encontrado.', p_codigo_profissional;
+  END IF;
+
+  SELECT id, nome, categoria, preco_base, ativo
+  INTO v_serv
+  FROM public.servicos
+  WHERE id = p_servico_id AND user_id = v_prof.id;
+
+  IF NOT FOUND OR NOT v_serv.ativo THEN
+    RAISE EXCEPTION 'Serviço não encontrado ou inativo.';
+  END IF;
+
+  v_clean_whatsapp := REGEXP_REPLACE(COALESCE(p_cliente_whatsapp, ''), '\D', '', 'g');
+
+  IF v_clean_whatsapp <> '' THEN
+    SELECT id INTO v_cliente_id
+    FROM public.clientes
+    WHERE user_id = v_prof.id AND whatsapp = v_clean_whatsapp
+    LIMIT 1;
+  END IF;
+
+  IF v_cliente_id IS NULL THEN
+    INSERT INTO public.clientes (user_id, nome, whatsapp)
+    VALUES (v_prof.id, TRIM(p_cliente_nome), NULLIF(v_clean_whatsapp, ''))
+    RETURNING id INTO v_cliente_id;
+  END IF;
+
+  IF p_local = 'Domicílio' THEN
+    v_local := 'Domicílio'::local_agendamento;
+  ELSE
+    v_local := 'Studio'::local_agendamento;
+  END IF;
+
+  BEGIN
+    v_forma := p_forma_pagamento::forma_pagamento;
+  EXCEPTION WHEN OTHERS THEN
+    v_forma := NULL;
+  END;
+
+  INSERT INTO public.agendamentos (
+    user_id,
+    cliente_id,
+    cliente_user_id,
+    servico_id,
+    data_hora,
+    valor_final,
+    forma_pagamento,
+    status,
+    local,
+    observacoes
+  ) VALUES (
+    v_prof.id,
+    v_cliente_id,
+    p_cliente_user_id,
+    v_serv.id,
+    p_data_hora,
+    v_serv.preco_base,
+    v_forma,
+    'Agendado'::status_agendamento,
+    v_local,
+    NULLIF(TRIM(p_observacoes), '')
+  )
+  RETURNING *
+  INTO v_agendamento;
+
+  RETURN jsonb_build_object(
+    'id', v_agendamento.id,
+    'user_id', v_agendamento.user_id,
+    'cliente_id', v_agendamento.cliente_id,
+    'cliente_user_id', v_agendamento.cliente_user_id,
+    'servico_id', v_agendamento.servico_id,
+    'data_hora', v_agendamento.data_hora,
+    'valor_final', v_agendamento.valor_final,
+    'forma_pagamento', v_agendamento.forma_pagamento,
+    'status', v_agendamento.status,
+    'local', v_agendamento.local,
+    'observacoes', v_agendamento.observacoes,
+    'profissional', jsonb_build_object(
+      'id', v_prof.id,
+      'nome', v_prof.nome,
+      'nome_studio', v_prof.nome_studio,
+      'whatsapp', v_prof.whatsapp,
+      'email', v_prof.email
+    ),
+    'servicos', jsonb_build_object(
+      'id', v_serv.id,
+      'nome', v_serv.nome,
+      'categoria', v_serv.categoria,
+      'preco_base', v_serv.preco_base
+    )
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.criar_agendamento_publico TO anon, authenticated, service_role;
+
 -- Trigger de updated_at para perfis
+DROP TRIGGER IF EXISTS perfis_updated_at ON public.perfis;
 CREATE TRIGGER perfis_updated_at
   BEFORE UPDATE ON public.perfis
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
