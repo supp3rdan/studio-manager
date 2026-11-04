@@ -219,3 +219,4 @@ export async function notificarAgendamento(params: EmailAgendamentoParams): Prom
     });
   }
 }
+
