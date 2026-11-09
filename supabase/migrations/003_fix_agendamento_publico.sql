@@ -155,3 +155,4 @@ $$;
 
 -- Permite que a função seja executada pelo público e clientes
 GRANT EXECUTE ON FUNCTION public.criar_agendamento_publico TO anon, authenticated, service_role;
+

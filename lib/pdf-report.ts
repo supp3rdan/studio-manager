@@ -36,12 +36,40 @@ export async function generateAgendamentosPDF(
 ): Promise<void> {
   // Dynamic import to avoid SSR issues
   const jsPDFModule = await import("jspdf");
-  const jsPDF = jsPDFModule.default;
-  // Import autoTable as standalone function (prototype augmentation unreliable with dynamic imports)
-  const autoTableModule = await import("jspdf-autotable");
-  const autoTable = (autoTableModule.default || autoTableModule) as any;
+  const jsPDFClass = (jsPDFModule.default || jsPDFModule.jsPDF || jsPDFModule) as any;
 
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  // Set on window so jspdf-autotable plugin can register if checking window
+  if (typeof window !== "undefined") {
+    (window as any).jsPDF = jsPDFClass;
+  }
+
+  const autoTableModule = (await import("jspdf-autotable")) as any;
+
+  // Explicitly run applyPlugin if available
+  const applyPlugin = autoTableModule.applyPlugin || autoTableModule.default?.applyPlugin;
+  if (typeof applyPlugin === "function") {
+    try {
+      applyPlugin(jsPDFClass);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Resolve callable autoTable function
+  const autoTableFn =
+    typeof autoTableModule.default === "function"
+      ? autoTableModule.default
+      : typeof autoTableModule.autoTable === "function"
+      ? autoTableModule.autoTable
+      : typeof autoTableModule === "function"
+      ? autoTableModule
+      : typeof autoTableModule.default?.default === "function"
+      ? autoTableModule.default.default
+      : typeof autoTableModule.default?.autoTable === "function"
+      ? autoTableModule.default.autoTable
+      : null;
+
+  const doc = new jsPDFClass({ orientation: "landscape", unit: "mm", format: "a4" });
 
   // ── Colors ──────────────────────────────────────────────────────────────
   const GOLD = [201, 168, 76] as [number, number, number];
@@ -155,8 +183,8 @@ export async function generateAgendamentosPDF(
     return map[status] ?? [120, 120, 120];
   }
 
-  // Call autoTable as standalone function (works correctly with dynamic imports)
-  autoTable(doc, {
+  // Configure table options
+  const tableConfig: any = {
     startY: tableStartY,
     head: [[
       "Data / Hora",
@@ -220,7 +248,16 @@ export async function generateAgendamentosPDF(
       }
     },
     margin: { left: 14, right: 14 },
-  });
+  };
+
+  // Execute autoTable using standalone function or document method
+  if (typeof autoTableFn === "function") {
+    autoTableFn(doc, tableConfig);
+  } else if (typeof (doc as any).autoTable === "function") {
+    (doc as any).autoTable(tableConfig);
+  } else {
+    throw new Error("Não foi possível carregar a função autoTable do jspdf-autotable.");
+  }
 
   // ── Footer ────────────────────────────────────────────────────────────────
   const pageCount = (doc as any).internal.getNumberOfPages();
