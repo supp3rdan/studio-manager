@@ -38,6 +38,9 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}${next}`);
   }
 
-  // Fallback to email-confirmado with status notice
-  return NextResponse.redirect(`${origin}/email-confirmado?status=erro`);
+  // Fallback if verification could not establish session
+  const fallback = next.includes("redefinir-senha")
+    ? "/recuperar-senha?error=link_expirado"
+    : "/email-confirmado?status=erro";
+  return NextResponse.redirect(`${origin}${fallback}`);
 }

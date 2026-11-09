@@ -48,10 +48,12 @@ export async function middleware(request: NextRequest) {
 
   const isAuthPage =
     pathname.startsWith("/login") ||
-    pathname.startsWith("/register");
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/recuperar-senha");
 
   const isPublicPath =
     isAuthPage ||
+    pathname.startsWith("/redefinir-senha") ||
     pathname.startsWith("/email-confirmado") ||
     pathname.startsWith("/p/") ||
     pathname.startsWith("/buscar") ||
