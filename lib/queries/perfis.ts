@@ -103,7 +103,6 @@ export async function getServicosDoProfissional(
   if (error) throw error;
   return (data as Servico[]) ?? [];
 }
-
 export async function getAgendamentosDoCliente(): Promise<Agendamento[]> {
   const supabase = createClient();
   const {

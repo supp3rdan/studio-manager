@@ -50,10 +50,27 @@ export interface Servico {
   categoria: CategoriaServico;
   nome: string;
   preco_base: number;
+  preco_promocional: number | null;
+  promocao_ativa: boolean;
+  duracao_minutos: number;
   tipo: TipoServico;
   ativo: boolean;
   criado_em: string;
   atualizado_em: string;
+}
+
+export type TipoIndisponibilidade = "dia_inteiro" | "horario";
+
+export interface Indisponibilidade {
+  id: string;
+  user_id: string;
+  tipo: TipoIndisponibilidade;
+  data_inicio: string;
+  data_fim: string | null;
+  titulo: string | null;
+  recorrente: boolean;
+  dia_semana: number | null;
+  criado_em: string;
 }
 
 export interface Agendamento {
