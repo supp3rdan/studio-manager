@@ -40,38 +40,40 @@ export async function deleteIndisponibilidade(id: string): Promise<void> {
   if (error) throw error;
 }
 
-/** Busca horários disponíveis via RPC (usado pelo cliente no modal de agendamento) */
+/** Busca horários disponíveis (07h às 22h) via API interna */
 export async function getHorariosDisponiveis(
   profissionalId: string,
   data: string, // "yyyy-MM-dd"
   duracaoMinutos: number = 30
 ): Promise<string[]> {
-  const supabase = createClient();
-  const { data: result, error } = await supabase.rpc("get_horarios_disponiveis", {
-    p_profissional_id: profissionalId,
-    p_data: data,
-    p_duracao_minutos: duracaoMinutos,
-  });
+  try {
+    const res = await fetch(
+      `/api/horarios-disponiveis?profissional_id=${encodeURIComponent(
+        profissionalId
+      )}&data=${encodeURIComponent(data)}&duracao=${duracaoMinutos}`
+    );
 
-  if (error) {
-    console.warn("get_horarios_disponiveis RPC error:", error.message);
-    // Fallback: gera slots 08-22 sem verificação
-    return generateSlots(data);
+    if (res.ok) {
+      const json = await res.json();
+      if (Array.isArray(json.slots)) {
+        return json.slots;
+      }
+    }
+  } catch (err) {
+    console.warn("Erro ao buscar horários via API, usando fallback:", err);
   }
 
-  if (!result || result.length === 0) return [];
-
-  return (result as Array<{ horario: string }>).map((r) => r.horario);
+  // Fallback seguro: gera slots das 07:00 às 22:00 (a cada 30 min)
+  return generateSlots();
 }
 
-/** Fallback: gera slots de 30 em 30 minutos das 08h às 21h30 */
-function generateSlots(data: string): string[] {
+/** Fallback: gera slots de 30 em 30 minutos das 07h às 22h */
+function generateSlots(): string[] {
   const slots: string[] = [];
-  for (let h = 8; h < 22; h++) {
-    for (const m of [0, 30]) {
-      const hh = String(h).padStart(2, "0");
-      const mm = String(m).padStart(2, "0");
-      slots.push(`${data}T${hh}:${mm}:00.000Z`);
+  for (let h = 7; h <= 22; h++) {
+    slots.push(`${String(h).padStart(2, "0")}:00`);
+    if (h < 22) {
+      slots.push(`${String(h).padStart(2, "0")}:30`);
     }
   }
   return slots;

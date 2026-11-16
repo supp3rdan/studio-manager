@@ -155,8 +155,12 @@ export function AgendamentoModal({
         const isToday = watchedData === format(now, "yyyy-MM-dd");
         const filtered = slots.filter((s) => {
           if (!isToday) return true;
-          const slotDate = new Date(s);
-          return slotDate > now;
+          const horaStr = s.length === 5 ? s : format(new Date(s), "HH:mm");
+          const [h, m] = horaStr.split(":").map(Number);
+          const slotDateTime = new Date(
+            `${watchedData}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`
+          );
+          return slotDateTime > now;
         });
         setHorarios(filtered);
       })
@@ -172,11 +176,9 @@ export function AgendamentoModal({
     if (!servico) return;
 
     try {
-      // slot is a full ISO string from the RPC; convert to correct local datetime
-      const slotDate = new Date(data.slot);
-      // Adjust for Brazil timezone offset by using the UTC representation
-      // but we need local date + slot time merged properly
-      const [hh, mm] = format(slotDate, "HH:mm").split(":");
+      // Extrai horário "HH:mm" (seja slot formato direto "HH:mm" ou ISO)
+      const horaStr = data.slot.length === 5 ? data.slot : format(new Date(data.slot), "HH:mm");
+      const [hh, mm] = horaStr.split(":");
       const localDt = new Date(`${data.data}T${hh}:${mm}:00`);
       const dataHoraIso = localDt.toISOString();
 
@@ -257,7 +259,13 @@ export function AgendamentoModal({
                   {watchedData
                     ? format(new Date(watchedData + "T12:00:00"), "dd/MM/yyyy")
                     : ""}
-                  {watchedSlot ? ` às ${format(new Date(watchedSlot), "HH:mm")}` : ""}
+                  {watchedSlot
+                    ? ` às ${
+                        watchedSlot.length === 5
+                          ? watchedSlot
+                          : format(new Date(watchedSlot), "HH:mm")
+                      }`
+                    : ""}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -410,7 +418,10 @@ export function AgendamentoModal({
                       render={({ field }) => (
                         <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1">
                           {horarios.map((h) => {
-                            const label = format(parseISO(h), "HH:mm");
+                            const label =
+                              h.length === 5
+                                ? h
+                                : format(new Date(h), "HH:mm");
                             const isSelected = field.value === h;
                             return (
                               <button

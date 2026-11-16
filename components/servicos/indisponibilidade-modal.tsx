@@ -83,8 +83,8 @@ export function IndisponibilidadeModal({ open, onClose }: IndisponibilidadeModal
       recorrente: false,
       dia_semana: null,
       data: "",
-      hora_inicio: "08:00",
-      hora_fim: "09:00",
+      hora_inicio: "07:00",
+      hora_fim: "08:00",
       titulo: "",
     },
   });
@@ -98,8 +98,8 @@ export function IndisponibilidadeModal({ open, onClose }: IndisponibilidadeModal
       recorrente: false,
       dia_semana: null,
       data: "",
-      hora_inicio: "08:00",
-      hora_fim: "09:00",
+      hora_inicio: "07:00",
+      hora_fim: "08:00",
       titulo: "",
     });
   }, [open, reset]);
@@ -308,7 +308,7 @@ export function IndisponibilidadeModal({ open, onClose }: IndisponibilidadeModal
                 <Input
                   id="hora_inicio"
                   type="time"
-                  min="08:00"
+                  min="07:00"
                   max="21:30"
                   {...register("hora_inicio")}
                 />
@@ -318,7 +318,7 @@ export function IndisponibilidadeModal({ open, onClose }: IndisponibilidadeModal
                 <Input
                   id="hora_fim"
                   type="time"
-                  min="08:30"
+                  min="07:30"
                   max="22:00"
                   {...register("hora_fim")}
                 />
