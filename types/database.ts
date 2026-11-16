@@ -21,6 +21,15 @@ export type FormaPagamento =
   | "Cartão Crédito"
   | "Crédito Bemol"
   | "Dinheiro";
+
+/** Opções individuais de pagamento (também aceita combinações como "Pix + Dinheiro") */
+export const FORMAS_PAGAMENTO: FormaPagamento[] = [
+  "Pix",
+  "Cartão Débito",
+  "Cartão Crédito",
+  "Crédito Bemol",
+  "Dinheiro",
+];
 export type LocalAgendamento = "Studio" | "Domicílio";
 
 export interface Perfil {
@@ -81,7 +90,7 @@ export interface Agendamento {
   servico_id: string | null;
   data_hora: string;
   valor_final: number | null;
-  forma_pagamento: FormaPagamento | null;
+  forma_pagamento: string | null; // TEXT no banco — suporta pagamento misto ex: "Pix + Dinheiro"
   status: StatusAgendamento;
   local: LocalAgendamento;
   observacoes: string | null;
@@ -107,7 +116,7 @@ export interface FaturamentoMensal {
 }
 
 export interface PagamentoPorMetodo {
-  metodo: FormaPagamento;
+  metodo: string;
   valor: number;
   count: number;
 }

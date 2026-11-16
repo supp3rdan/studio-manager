@@ -40,16 +40,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency, getWhatsAppUrl, cn } from "@/lib/utils";
 import { getHorariosDisponiveis } from "@/lib/queries/indisponibilidades";
+import { PaymentSelector } from "@/components/ui/payment-selector";
 import type { Perfil, Servico } from "@/types/database";
 
 const schema = z.object({
   data: z.string().min(1, "Selecione a data"),
   slot: z.string().min(1, "Selecione um horário disponível"),
   local: z.enum(["Studio", "Domicílio"]),
-  forma_pagamento: z
-    .enum(["Pix", "Cartão Débito", "Cartão Crédito", "Crédito Bemol", "Dinheiro"])
-    .optional()
-    .nullable(),
+  forma_pagamento: z.string().optional().nullable(),
   cliente_nome: z.string().min(2, "Informe seu nome"),
   cliente_whatsapp: z.string().min(10, "Informe seu WhatsApp com DDD"),
   cliente_email: z.string().email("E-mail inválido").optional().or(z.literal("")),
@@ -438,48 +436,39 @@ export function AgendamentoModal({
                 </div>
               )}
 
-              {/* Local e Forma de Pagamento */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>Local *</Label>
-                  <Controller
-                    name="local"
-                    control={control}
-                    render={({ field }) => (
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <SelectTrigger className="bg-background">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Studio">No Studio</SelectItem>
-                          <SelectItem value="Domicílio">A Domicílio</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </div>
+              {/* Local de Atendimento */}
+              <div className="space-y-1.5">
+                <Label>Local *</Label>
+                <Controller
+                  name="local"
+                  control={control}
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Studio">No Studio</SelectItem>
+                        <SelectItem value="Domicílio">A Domicílio</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
 
-                <div className="space-y-1.5">
-                  <Label>Pagamento</Label>
-                  <Controller
-                    name="forma_pagamento"
-                    control={control}
-                    render={({ field }) => (
-                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                        <SelectTrigger className="bg-background">
-                          <SelectValue placeholder="Preferencial" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Pix">Pix</SelectItem>
-                          <SelectItem value="Cartão Crédito">Cartão Crédito</SelectItem>
-                          <SelectItem value="Cartão Débito">Cartão Débito</SelectItem>
-                          <SelectItem value="Dinheiro">Dinheiro</SelectItem>
-                          <SelectItem value="Crédito Bemol">Crédito Bemol</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </div>
+              {/* Forma de Pagamento (suporte a pagamento misto) */}
+              <div className="space-y-1.5">
+                <Label>Forma de Pagamento (escolha uma ou mais)</Label>
+                <Controller
+                  name="forma_pagamento"
+                  control={control}
+                  render={({ field }) => (
+                    <PaymentSelector
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  )}
+                />
               </div>
 
               {/* Dados do cliente */}
