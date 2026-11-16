@@ -27,6 +27,12 @@ import {
 import { createServico, updateServico } from "@/lib/queries/servicos";
 import type { Servico, CategoriaServico, TipoServico } from "@/types/database";
 
+/** Duração padrão por categoria */
+function duracaoPorCategoria(categoria: string): number {
+  if (categoria === "Cílios" || categoria === "Depilação") return 60;
+  return 30; // Sobrancelhas e demais
+}
+
 const schema = z
   .object({
     nome: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
@@ -67,6 +73,7 @@ export function ServicoForm({ open, onClose, servico }: ServicoFormProps) {
     control,
     reset,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -76,28 +83,38 @@ export function ServicoForm({ open, onClose, servico }: ServicoFormProps) {
       preco_base: 0,
       preco_promocional: null,
       promocao_ativa: false,
-      duracao_minutos: 30,
+      duracao_minutos: 60, // Cílios é o default inicial
       tipo: "Tabela Padrão",
       ativo: true,
     },
   });
 
   const watchPromocaoAtiva = watch("promocao_ativa");
+  const watchCategoria = watch("categoria");
 
+  // Preenche o form ao abrir/editar
   useEffect(() => {
     if (open) {
+      const categoriaDefault = servico?.categoria ?? "Cílios";
       reset({
         nome: servico?.nome ?? "",
-        categoria: servico?.categoria ?? "Cílios",
+        categoria: categoriaDefault,
         preco_base: servico?.preco_base ?? 0,
         preco_promocional: servico?.preco_promocional ?? null,
         promocao_ativa: servico?.promocao_ativa ?? false,
-        duracao_minutos: servico?.duracao_minutos ?? 30,
+        duracao_minutos: servico?.duracao_minutos ?? duracaoPorCategoria(categoriaDefault),
         tipo: servico?.tipo ?? "Tabela Padrão",
         ativo: servico?.ativo ?? true,
       });
     }
   }, [open, servico, reset]);
+
+  // Ao mudar categoria em serviço NOVO, ajusta duração automaticamente
+  useEffect(() => {
+    if (!isEditing) {
+      setValue("duracao_minutos", duracaoPorCategoria(watchCategoria));
+    }
+  }, [watchCategoria, isEditing, setValue]);
 
   const onSubmit = async (data: FormData) => {
     try {
@@ -264,3 +281,4 @@ export function ServicoForm({ open, onClose, servico }: ServicoFormProps) {
     </Dialog>
   );
 }
+
