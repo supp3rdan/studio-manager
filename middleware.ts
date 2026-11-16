@@ -59,6 +59,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/buscar") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/agendamentos/publico") ||
+    pathname.startsWith("/api/horarios-disponiveis") ||
     pathname === "/";
 
   // Redirect unauthenticated users to login (RNF02)
