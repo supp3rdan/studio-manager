@@ -47,6 +47,41 @@ export async function updateServico(
   return data;
 }
 
+export async function updateDuracaoPadrao(duracao: number): Promise<void> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const { error } = await supabase
+    .from("servicos")
+    .update({ duracao_minutos: duracao })
+    .eq("user_id", user.id);
+
+  if (error) throw error;
+}
+
+export async function togglePromocao(id: string, ativa: boolean): Promise<Servico> {
+  return updateServico(id, { promocao_ativa: ativa });
+}
+
+export async function togglePromocaoTodos(ativa: boolean): Promise<void> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado");
+
+  const { error } = await supabase
+    .from("servicos")
+    .update({ promocao_ativa: ativa })
+    .eq("user_id", user.id)
+    .not("preco_promocional", "is", null);
+
+  if (error) throw error;
+}
+
 export async function deleteServico(id: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("servicos").delete().eq("id", id);

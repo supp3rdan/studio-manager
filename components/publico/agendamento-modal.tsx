@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,11 +12,9 @@ import {
   Sparkles,
   CheckCircle,
   Phone,
-  MapPin,
-  CreditCard,
-  User,
+  Tag,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Dialog,
@@ -40,12 +38,13 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { createClient } from "@/lib/supabase/client";
-import { formatCurrency, formatWhatsApp, getWhatsAppUrl, cn } from "@/lib/utils";
+import { formatCurrency, getWhatsAppUrl, cn } from "@/lib/utils";
+import { getHorariosDisponiveis } from "@/lib/queries/indisponibilidades";
 import type { Perfil, Servico } from "@/types/database";
 
 const schema = z.object({
   data: z.string().min(1, "Selecione a data"),
-  hora: z.string().optional().nullable(),
+  slot: z.string().min(1, "Selecione um horário disponível"),
   local: z.enum(["Studio", "Domicílio"]),
   forma_pagamento: z
     .enum(["Pix", "Cartão Débito", "Cartão Crédito", "Crédito Bemol", "Dinheiro"])
@@ -78,6 +77,8 @@ export function AgendamentoModal({
   const [isSuccess, setIsSuccess] = useState(false);
   const [agendamentoCriado, setAgendamentoCriado] = useState<any>(null);
   const [clienteUserId, setClienteUserId] = useState<string | null>(null);
+  const [horarios, setHorarios] = useState<string[]>([]);
+  const [loadingHorarios, setLoadingHorarios] = useState(false);
 
   const supabase = createClient();
 
@@ -93,7 +94,7 @@ export function AgendamentoModal({
     resolver: zodResolver(schema),
     defaultValues: {
       data: "",
-      hora: "10:00",
+      slot: "",
       local: "Studio",
       forma_pagamento: "Pix",
       cliente_nome: "",
@@ -108,6 +109,7 @@ export function AgendamentoModal({
     if (open) {
       setIsSuccess(false);
       setAgendamentoCriado(null);
+      setHorarios([]);
 
       supabase.auth.getUser().then(async ({ data: { user } }) => {
         if (user) {
@@ -131,14 +133,54 @@ export function AgendamentoModal({
   }, [open, supabase, setValue]);
 
   const watchedData = watch("data");
+  const watchedSlot = watch("slot");
+
+  // Load available time slots when date changes
+  useEffect(() => {
+    if (!watchedData || !profissional?.id) {
+      setHorarios([]);
+      setValue("slot", "");
+      return;
+    }
+
+    setLoadingHorarios(true);
+    setValue("slot", "");
+
+    getHorariosDisponiveis(
+      profissional.id,
+      watchedData,
+      servico?.duracao_minutos ?? 30
+    )
+      .then((slots) => {
+        // Filter out past slots for today
+        const now = new Date();
+        const isToday = watchedData === format(now, "yyyy-MM-dd");
+        const filtered = slots.filter((s) => {
+          if (!isToday) return true;
+          const slotDate = new Date(s);
+          return slotDate > now;
+        });
+        setHorarios(filtered);
+      })
+      .catch(() => setHorarios([]))
+      .finally(() => setLoadingHorarios(false));
+  }, [watchedData, profissional?.id, servico?.duracao_minutos, setValue]);
+
+  const precoFinal = servico?.promocao_ativa && servico.preco_promocional != null
+    ? servico.preco_promocional
+    : servico?.preco_base ?? 0;
 
   const onSubmit = async (data: FormData) => {
     if (!servico) return;
 
     try {
-      const dataHoraIso = data.hora
-        ? new Date(`${data.data}T${data.hora}:00`).toISOString()
-        : new Date(`${data.data}T12:00:00`).toISOString();
+      // slot is a full ISO string from the RPC; convert to correct local datetime
+      const slotDate = new Date(data.slot);
+      // Adjust for Brazil timezone offset by using the UTC representation
+      // but we need local date + slot time merged properly
+      const [hh, mm] = format(slotDate, "HH:mm").split(":");
+      const localDt = new Date(`${data.data}T${hh}:${mm}:00`);
+      const dataHoraIso = localDt.toISOString();
 
       const response = await fetch("/api/agendamentos/publico", {
         method: "POST",
@@ -175,6 +217,7 @@ export function AgendamentoModal({
   const handleClose = () => {
     reset();
     setIsSuccess(false);
+    setHorarios([]);
     onClose();
   };
 
@@ -216,13 +259,13 @@ export function AgendamentoModal({
                   {watchedData
                     ? format(new Date(watchedData + "T12:00:00"), "dd/MM/yyyy")
                     : ""}
-                  {watch("hora") ? ` às ${watch("hora")}` : ""}
+                  {watchedSlot ? ` às ${format(new Date(watchedSlot), "HH:mm")}` : ""}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Valor:</span>
                 <span className="font-semibold text-foreground">
-                  {formatCurrency(servico.preco_base)}
+                  {formatCurrency(precoFinal)}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -243,11 +286,7 @@ export function AgendamentoModal({
               </a>
             )}
 
-            <Button
-              variant="outline"
-              onClick={handleClose}
-              className="w-full"
-            >
+            <Button variant="outline" onClick={handleClose} className="w-full">
               Concluir
             </Button>
           </div>
@@ -268,92 +307,136 @@ export function AgendamentoModal({
               </div>
             </DialogHeader>
 
-            {/* Resumo do serviço selecionado */}
+            {/* Resumo do serviço */}
             <div className="p-3 rounded-xl bg-background border border-border flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {servico.categoria}
                 </span>
-                <p className="text-sm font-semibold text-foreground">
-                  {servico.nome}
+                <p className="text-sm font-semibold text-foreground">{servico.nome}</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                  <Clock className="w-3 h-3" />
+                  {servico.duracao_minutos ?? 30} min
                 </p>
               </div>
-              <p className="text-base font-bold text-[#C9A84C]">
-                {formatCurrency(servico.preco_base)}
-              </p>
+              <div className="text-right">
+                {servico.promocao_ativa && servico.preco_promocional != null ? (
+                  <>
+                    <p className="text-xs text-muted-foreground line-through">
+                      {formatCurrency(servico.preco_base)}
+                    </p>
+                    <p className="text-base font-bold text-[#C9A84C]">
+                      {formatCurrency(servico.preco_promocional)}
+                    </p>
+                    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-400 bg-red-400/10 border border-red-400/20 px-1.5 py-0.5 rounded-full">
+                      <Tag className="w-3 h-3" />
+                      Promoção
+                    </span>
+                  </>
+                ) : (
+                  <p className="text-base font-bold text-[#C9A84C]">
+                    {formatCurrency(servico.preco_base)}
+                  </p>
+                )}
+              </div>
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              {/* Data e Hora */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>Data *</Label>
-                  <Controller
-                    name="data"
-                    control={control}
-                    render={({ field }) => (
-                      <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                        <PopoverTrigger asChild>
-                          <button
-                            type="button"
-                            className={cn(
-                              "w-full flex items-center gap-2 px-3 h-10 rounded-lg border border-border bg-background text-sm text-left",
-                              "hover:border-[#C9A84C]/40 focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/30 transition-colors",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            <CalendarIcon className="w-4 h-4 text-[#C9A84C] shrink-0" />
-                            <span className="truncate">
-                              {field.value
-                                ? format(
-                                    new Date(field.value + "T12:00:00"),
-                                    "dd/MM/yyyy"
-                                  )
-                                : "dd/mm/aaaa"}
-                            </span>
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent align="start" className="p-0">
-                          <Calendar
-                            mode="single"
-                            selected={
-                              field.value
-                                ? new Date(field.value + "T12:00:00")
-                                : undefined
+              {/* Data */}
+              <div className="space-y-1.5">
+                <Label>Data *</Label>
+                <Controller
+                  name="data"
+                  control={control}
+                  render={({ field }) => (
+                    <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className={cn(
+                            "w-full flex items-center gap-2 px-3 h-10 rounded-lg border border-border bg-background text-sm text-left",
+                            "hover:border-[#C9A84C]/40 focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/30 transition-colors",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="w-4 h-4 text-[#C9A84C] shrink-0" />
+                          <span className="truncate">
+                            {field.value
+                              ? format(new Date(field.value + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR })
+                              : "Selecionar data"}
+                          </span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="p-0">
+                        <Calendar
+                          mode="single"
+                          selected={field.value ? new Date(field.value + "T12:00:00") : undefined}
+                          onSelect={(date) => {
+                            if (date) {
+                              field.onChange(format(date, "yyyy-MM-dd"));
+                            } else {
+                              field.onChange("");
                             }
-                            onSelect={(date) => {
-                              if (date) {
-                                field.onChange(format(date, "yyyy-MM-dd"));
-                              } else {
-                                field.onChange("");
-                              }
-                              setCalendarOpen(false);
-                            }}
-                            disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    )}
-                  />
-                  {errors.data && (
-                    <p className="text-xs text-destructive">{errors.data.message}</p>
+                            setCalendarOpen(false);
+                          }}
+                          disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   )}
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="hora" className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-                    Horário *
-                  </Label>
-                  <Input
-                    id="hora"
-                    type="time"
-                    className="bg-background"
-                    {...register("hora")}
-                  />
-                </div>
+                />
+                {errors.data && <p className="text-xs text-destructive">{errors.data.message}</p>}
               </div>
+
+              {/* Horários disponíveis */}
+              {watchedData && (
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                    Horário disponível *
+                  </Label>
+                  {loadingHorarios ? (
+                    <div className="flex items-center gap-2 py-4 justify-center text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-xs">Verificando disponibilidade...</span>
+                    </div>
+                  ) : horarios.length === 0 ? (
+                    <div className="py-4 text-center text-xs text-muted-foreground border border-dashed border-border rounded-lg">
+                      Nenhum horário disponível nesta data. Escolha outra data.
+                    </div>
+                  ) : (
+                    <Controller
+                      name="slot"
+                      control={control}
+                      render={({ field }) => (
+                        <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1">
+                          {horarios.map((h) => {
+                            const label = format(parseISO(h), "HH:mm");
+                            const isSelected = field.value === h;
+                            return (
+                              <button
+                                key={h}
+                                type="button"
+                                onClick={() => field.onChange(h)}
+                                className={cn(
+                                  "py-2 px-1 rounded-lg border text-xs font-medium transition-all",
+                                  isSelected
+                                    ? "border-[#C9A84C] bg-[#C9A84C] text-[#0A0A0A] shadow-md shadow-[#C9A84C]/20"
+                                    : "border-border bg-background text-foreground hover:border-[#C9A84C]/40 hover:bg-[#C9A84C]/5"
+                                )}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    />
+                  )}
+                  {errors.slot && <p className="text-xs text-destructive">{errors.slot.message}</p>}
+                </div>
+              )}
 
               {/* Local e Forma de Pagamento */}
               <div className="grid grid-cols-2 gap-3">
@@ -363,10 +446,7 @@ export function AgendamentoModal({
                     name="local"
                     control={control}
                     render={({ field }) => (
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <SelectTrigger className="bg-background">
                           <SelectValue />
                         </SelectTrigger>
@@ -385,17 +465,14 @@ export function AgendamentoModal({
                     name="forma_pagamento"
                     control={control}
                     render={({ field }) => (
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value ?? ""}
-                      >
+                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
                         <SelectTrigger className="bg-background">
-                          <SelectValue placeholder="Forma preferencial" />
+                          <SelectValue placeholder="Preferencial" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Pix">Pix</SelectItem>
-                          <SelectItem value="Cartão Crédito">Cartão de Crédito</SelectItem>
-                          <SelectItem value="Cartão Débito">Cartão de Débito</SelectItem>
+                          <SelectItem value="Cartão Crédito">Cartão Crédito</SelectItem>
+                          <SelectItem value="Cartão Débito">Cartão Débito</SelectItem>
                           <SelectItem value="Dinheiro">Dinheiro</SelectItem>
                           <SelectItem value="Crédito Bemol">Crédito Bemol</SelectItem>
                         </SelectContent>
@@ -405,7 +482,7 @@ export function AgendamentoModal({
                 </div>
               </div>
 
-              {/* Seus dados */}
+              {/* Dados do cliente */}
               <div className="pt-2 border-t border-border space-y-3">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Seus Dados de Contato
@@ -420,9 +497,7 @@ export function AgendamentoModal({
                     {...register("cliente_nome")}
                   />
                   {errors.cliente_nome && (
-                    <p className="text-xs text-destructive">
-                      {errors.cliente_nome.message}
-                    </p>
+                    <p className="text-xs text-destructive">{errors.cliente_nome.message}</p>
                   )}
                 </div>
 
@@ -437,18 +512,14 @@ export function AgendamentoModal({
                       {...register("cliente_whatsapp")}
                     />
                     {errors.cliente_whatsapp && (
-                      <p className="text-xs text-destructive">
-                        {errors.cliente_whatsapp.message}
-                      </p>
+                      <p className="text-xs text-destructive">{errors.cliente_whatsapp.message}</p>
                     )}
                   </div>
 
                   <div className="space-y-1.5">
                     <Label htmlFor="cliente_email">
                       E-mail{" "}
-                      <span className="text-xs text-muted-foreground font-normal">
-                        (para confirmação)
-                      </span>
+                      <span className="text-xs text-muted-foreground font-normal">(confirmação)</span>
                     </Label>
                     <Input
                       id="cliente_email"
@@ -458,9 +529,7 @@ export function AgendamentoModal({
                       {...register("cliente_email")}
                     />
                     {errors.cliente_email && (
-                      <p className="text-xs text-destructive">
-                        {errors.cliente_email.message}
-                      </p>
+                      <p className="text-xs text-destructive">{errors.cliente_email.message}</p>
                     )}
                   </div>
                 </div>
@@ -469,7 +538,7 @@ export function AgendamentoModal({
                   <Label htmlFor="observacoes">Observações (opcional)</Label>
                   <Textarea
                     id="observacoes"
-                    placeholder="Preferências, alergias ou detalhes do atendimento..."
+                    placeholder="Preferências, alergias ou detalhes..."
                     rows={2}
                     className="bg-background"
                     {...register("observacoes")}
@@ -486,7 +555,7 @@ export function AgendamentoModal({
                 >
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="submit" disabled={isSubmitting || !watchedSlot}>
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -504,4 +573,3 @@ export function AgendamentoModal({
     </Dialog>
   );
 }
-
