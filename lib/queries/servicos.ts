@@ -3,9 +3,16 @@ import type { Servico } from "@/types/database";
 
 export async function getServicos(): Promise<Servico[]> {
   const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return [];
+
   const { data, error } = await supabase
     .from("servicos")
     .select("*")
+    .eq("user_id", user.id)
     .order("categoria", { ascending: true })
     .order("nome", { ascending: true });
 

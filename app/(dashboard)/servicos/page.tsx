@@ -86,7 +86,10 @@ export default function ServicosPage() {
   const handleDelete = async (id: string) => {
     try {
       await deleteServico(id);
-      toast.success("Serviço removido");
+      // Atualiza o estado localmente de imediato (sem esperar reload da rede)
+      setServicos((prev) => prev.filter((s) => s.id !== id));
+      toast.success("Serviço removido com sucesso");
+      // Recarrega em background para garantir consistência
       load();
     } catch {
       toast.error("Erro ao remover serviço");
