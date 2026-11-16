@@ -33,6 +33,7 @@ import { createAgendamento, updateAgendamento } from "@/lib/queries/agendamentos
 import { getClientes } from "@/lib/queries/clientes";
 import { getServicos } from "@/lib/queries/servicos";
 import { cn } from "@/lib/utils";
+import { PaymentSelector } from "@/components/ui/payment-selector";
 import type { Agendamento, Cliente, Servico } from "@/types/database";
 
 const schema = z.object({
@@ -43,10 +44,7 @@ const schema = z.object({
   // Optional HH:MM string
   hora: z.string().optional().nullable(),
   valor_final: z.number().min(0, "Valor deve ser positivo"),
-  forma_pagamento: z
-    .enum(["Pix", "Cartão Débito", "Cartão Crédito", "Crédito Bemol", "Dinheiro"])
-    .optional()
-    .nullable(),
+  forma_pagamento: z.string().nullable().optional(),
   status: z.enum(["Agendado", "Confirmado", "Concluído", "Cancelado", "Não Compareceu"]),
   local: z.enum(["Studio", "Domicílio"]),
   observacoes: z.string().optional().nullable(),
@@ -346,30 +344,23 @@ export function AgendamentoForm({ open, onClose, agendamento }: AgendamentoFormP
             )}
           </div>
 
-          {/* Forma de Pagamento + Status */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Forma de Pagamento</Label>
-              <Controller
-                name="forma_pagamento"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pagamento..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Pix">Pix</SelectItem>
-                      <SelectItem value="Cartão Débito">Cartão Débito</SelectItem>
-                      <SelectItem value="Cartão Crédito">Cartão Crédito</SelectItem>
-                      <SelectItem value="Crédito Bemol">Crédito Bemol</SelectItem>
-                      <SelectItem value="Dinheiro">Dinheiro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
+          {/* Forma de Pagamento (suporte a pagamento misto) */}
+          <div className="space-y-1.5">
+            <Label>Forma de Pagamento</Label>
+            <Controller
+              name="forma_pagamento"
+              control={control}
+              render={({ field }) => (
+                <PaymentSelector
+                  value={field.value}
+                  onChange={field.onChange}
+                />
+              )}
+            />
+          </div>
 
+          {/* Status + Local */}
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Status *</Label>
               <Controller
@@ -391,26 +382,25 @@ export function AgendamentoForm({ open, onClose, agendamento }: AgendamentoFormP
                 )}
               />
             </div>
-          </div>
 
-          {/* Local */}
-          <div className="space-y-1.5">
-            <Label>Local *</Label>
-            <Controller
-              name="local"
-              control={control}
-              render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Studio">Studio</SelectItem>
-                    <SelectItem value="Domicílio">Domicílio</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
+            <div className="space-y-1.5">
+              <Label>Local *</Label>
+              <Controller
+                name="local"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Studio">Studio</SelectItem>
+                      <SelectItem value="Domicílio">Domicílio</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
           </div>
 
           {/* Observações */}
