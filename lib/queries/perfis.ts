@@ -92,13 +92,10 @@ export async function getServicosDoProfissional(
 ): Promise<Servico[]> {
   const supabase = createClient();
 
-  const { data, error } = await supabase
-    .from("servicos")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("ativo", true)
-    .order("categoria", { ascending: true })
-    .order("nome", { ascending: true });
+  // Usa função SECURITY DEFINER para contornar RLS sem expor dados de outros profissionais
+  const { data, error } = await supabase.rpc("get_servicos_do_profissional", {
+    p_user_id: userId,
+  });
 
   if (error) throw error;
   return (data as Servico[]) ?? [];
