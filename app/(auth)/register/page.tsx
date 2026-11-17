@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
+import { useSearchParams } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -12,6 +13,7 @@ import {
   CheckCircle,
   Briefcase,
   Heart,
+  Calendar,
 } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -38,12 +40,15 @@ const registerSchema = z
 
 type RegisterForm = z.infer<typeof registerSchema>;
 
-export default function RegisterPage() {
+function RegisterFormContent() {
+  const searchParams = useSearchParams();
+  const nextUrl = searchParams.get("next") || searchParams.get("redirect");
+  const isAgendamentoFlow = searchParams.get("msg") === "agendar" || (nextUrl && nextUrl.includes("/p/"));
+  const defaultTipo = searchParams.get("tipo") === "profissional" ? "profissional" : "cliente";
+
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [tipoUsuario, setTipoUsuario] = useState<"profissional" | "cliente">(
-    "cliente"
-  );
+  const [tipoUsuario, setTipoUsuario] = useState<"profissional" | "cliente">(defaultTipo);
   const supabase = createClient();
 
   const {
@@ -54,7 +59,7 @@ export default function RegisterPage() {
   } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      tipo_usuario: "cliente",
+      tipo_usuario: defaultTipo,
       nome: "",
       whatsapp: "",
       nome_studio: "",
@@ -63,6 +68,10 @@ export default function RegisterPage() {
       confirmPassword: "",
     },
   });
+
+  useEffect(() => {
+    setValue("tipo_usuario", tipoUsuario);
+  }, [tipoUsuario, setValue]);
 
   const handleTipoChange = (tipo: "profissional" | "cliente") => {
     setTipoUsuario(tipo);
@@ -74,7 +83,7 @@ export default function RegisterPage() {
     try {
       const emailRedirectTo =
         typeof window !== "undefined"
-          ? `${window.location.origin}/api/auth/callback?next=/email-confirmado`
+          ? `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(nextUrl || "/email-confirmado")}`
           : undefined;
 
       const { error } = await supabase.auth.signUp({
@@ -116,6 +125,10 @@ export default function RegisterPage() {
     }
   };
 
+  const loginLink = nextUrl
+    ? `/login?next=${encodeURIComponent(nextUrl)}`
+    : "/login";
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden py-12 px-4">
       {/* Background glow */}
@@ -138,7 +151,20 @@ export default function RegisterPage() {
         </div>
 
         {/* Card */}
-        <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 shadow-2xl">
+        <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 shadow-2xl space-y-5">
+          {/* Banner de aviso se veio do agendamento */}
+          {isAgendamentoFlow && (
+            <div className="p-3.5 rounded-xl bg-[#C9A84C]/10 border border-[#C9A84C]/25 flex items-start gap-3">
+              <Calendar className="w-5 h-5 text-[#C9A84C] shrink-0 mt-0.5" />
+              <div className="text-xs text-foreground">
+                <p className="font-semibold text-[#C9A84C]">Cadastro de cliente para agendamento</p>
+                <p className="text-muted-foreground mt-0.5">
+                  Preencha seus dados para criar sua conta de cliente e agendar seu horário.
+                </p>
+              </div>
+            </div>
+          )}
+
           {success ? (
             // ── Success state ──
             <div className="text-center space-y-4 py-4">
@@ -150,10 +176,10 @@ export default function RegisterPage() {
               </h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Enviamos um link de confirmação para o seu e-mail. Basta clicar
-                no link recebido para ativar sua conta e acessar seu portal.
+                no link recebido para ativar sua conta e acessar seu portal de agendamentos.
               </p>
               <Link
-                href="/login"
+                href={loginLink}
                 className="inline-flex items-center justify-center w-full py-3 px-6 rounded-lg font-semibold text-sm bg-[#C9A84C] hover:bg-[#E8C97A] text-[#0A0A0A] transition-all duration-200 mt-2 shadow-lg shadow-[#C9A84C]/20"
               >
                 Ir para o login
@@ -382,7 +408,7 @@ export default function RegisterPage() {
               <p className="text-center text-sm text-muted-foreground pt-1">
                 Já tem uma conta?{" "}
                 <Link
-                  href="/login"
+                  href={loginLink}
                   className="text-[#C9A84C] hover:underline font-medium"
                 >
                   Fazer login
@@ -397,5 +423,19 @@ export default function RegisterPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-[#C9A84C] animate-spin" />
+        </div>
+      }
+    >
+      <RegisterFormContent />
+    </Suspense>
   );
 }

@@ -36,6 +36,17 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validação obrigatória: Cliente precisa estar cadastrado e logado
+    if (!cliente_user_id) {
+      return NextResponse.json(
+        {
+          error:
+            "É necessário se cadastrar como cliente e estar logado para agendar um horário.",
+        },
+        { status: 401 }
+      );
+    }
+
     const supabase = getApiClient();
     const cleanWhatsapp = (cliente_whatsapp || "").replace(/\D/g, "");
     const dataHoraIso = new Date(data_hora).toISOString();

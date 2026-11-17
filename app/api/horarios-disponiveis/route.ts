@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
+const TIMEZONE = "America/Sao_Paulo";
+
 function getApiClient() {
   const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "");
   const key =
@@ -18,6 +20,23 @@ function getApiClient() {
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;
+}
+
+/** Formata data para "YYYY-MM-DD" no fuso de São Paulo */
+function getLocalDateString(isoOrDate: string | Date): string {
+  const d = typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate;
+  return d.toLocaleDateString("en-CA", { timeZone: TIMEZONE });
+}
+
+/** Formata horário para "HH:mm" no fuso de São Paulo */
+function getLocalTimeString(isoOrDate: string | Date): string {
+  const d = typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate;
+  return d.toLocaleTimeString("pt-BR", {
+    timeZone: TIMEZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 export async function GET(request: Request) {
@@ -36,7 +55,7 @@ export async function GET(request: Request) {
 
     const supabase = getApiClient();
 
-    // Gera todos os slots padrão das 07:00 às 22:00 (a cada 30 min)
+    // Grade base: 07:00 às 22:00 a cada 30 minutos
     const ALL_SLOTS: string[] = [];
     for (let h = 7; h <= 22; h++) {
       ALL_SLOTS.push(`${String(h).padStart(2, "0")}:00`);
@@ -47,10 +66,10 @@ export async function GET(request: Request) {
 
     // Calcula dia da semana para a data (0=Dom, 1=Seg, ..., 6=Sáb)
     const [ano, mes, dia] = dataStr.split("-").map(Number);
-    const dateObj = new Date(ano, mes - 1, dia);
-    const diaSemana = dateObj.getDay();
+    const dateObj = new Date(Date.UTC(ano, mes - 1, dia, 12, 0, 0));
+    const diaSemana = dateObj.getUTCDay();
 
-    // ── 1. Verifica indisponibilidades cadastradas pelo profissional ──
+    // ── 1. Verifica bloqueios de indisponibilidade cadastrados ──
     const { data: bloqueios } = await supabase
       .from("indisponibilidades")
       .select("*")
@@ -61,8 +80,8 @@ export async function GET(request: Request) {
         if (b.tipo === "dia_inteiro") {
           // Bloqueio pontual na data
           if (!b.recorrente && b.data_inicio) {
-            const dataInicioStr = b.data_inicio.slice(0, 10);
-            if (dataInicioStr === dataStr) {
+            const bDate = getLocalDateString(b.data_inicio);
+            if (bDate === dataStr) {
               return NextResponse.json({ slots: [] }); // Dia inteiro bloqueado
             }
           }
@@ -74,27 +93,51 @@ export async function GET(request: Request) {
       }
     }
 
-    // ── 2. Busca agendamentos ativos do profissional ──
-    // Considera intervalo amplo (para cobrir fusos horários do Brasil)
-    const startDateQuery = new Date(`${dataStr}T00:00:00.000Z`);
-    startDateQuery.setHours(startDateQuery.getHours() - 12);
-    const endDateQuery = new Date(`${dataStr}T23:59:59.999Z`);
-    endDateQuery.setHours(endDateQuery.getHours() + 12);
+    // ── 2. Busca agendamentos ocupados ('Agendado', 'Confirmado', 'Concluído') ──
+    // Intervalo seguro de busca (24 horas antes e depois da data requisitada)
+    const startRange = new Date(`${dataStr}T00:00:00-03:00`);
+    startRange.setHours(startRange.getHours() - 6);
+    const endRange = new Date(`${dataStr}T23:59:59-03:00`);
+    endRange.setHours(endRange.getHours() + 6);
 
-    const { data: agendamentos } = await supabase
-      .from("agendamentos")
-      .select("data_hora, servicos ( duracao_minutos )")
-      .eq("user_id", profissionalId)
-      .not("status", "in", '("Cancelado","Não Compareceu")')
-      .gte("data_hora", startDateQuery.toISOString())
-      .lte("data_hora", endDateQuery.toISOString());
+    let agendamentosOcupados: { data_hora: string; duracao_minutos: number }[] = [];
 
-    // ── 3. Filtra slots disponíveis ──
+    // Tenta primeiro via função RPC com SECURITY DEFINER (independente de RLS)
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
+      "get_agendamentos_ocupados",
+      {
+        p_profissional_id: profissionalId,
+        p_data_inicio: startRange.toISOString(),
+        p_data_fim: endRange.toISOString(),
+      }
+    );
+
+    if (!rpcError && Array.isArray(rpcData)) {
+      agendamentosOcupados = rpcData;
+    } else {
+      // Fallback para query direta caso a migration 009 ainda não tenha sido executada
+      const { data: directData } = await supabase
+        .from("agendamentos")
+        .select("data_hora, servicos ( duracao_minutos )")
+        .eq("user_id", profissionalId)
+        .in("status", ["Agendado", "Confirmado", "Concluído"])
+        .gte("data_hora", startRange.toISOString())
+        .lte("data_hora", endRange.toISOString());
+
+      if (directData && directData.length > 0) {
+        agendamentosOcupados = directData.map((d: any) => ({
+          data_hora: d.data_hora,
+          duracao_minutos: d.servicos?.duracao_minutos ?? 30,
+        }));
+      }
+    }
+
+    // ── 3. Filtra apenas os horários realmente livres ──
     const availableSlots = ALL_SLOTS.filter((slotTime) => {
       const slotStartMin = toMinutes(slotTime);
       const slotEndMin = slotStartMin + duracaoMinutos;
 
-      // Não permite slot que ultrapasse as 22h30
+      // Não permite slot que termine após as 22h30
       if (slotEndMin > 22 * 60 + 30) {
         return false;
       }
@@ -102,57 +145,41 @@ export async function GET(request: Request) {
       // Verifica bloqueios de horário específico
       if (bloqueios && bloqueios.length > 0) {
         for (const b of bloqueios) {
-          if (b.tipo === "horario") {
+          if (b.tipo === "horario" && b.data_inicio && b.data_fim) {
             let matchesDay = false;
             if (b.recorrente && b.dia_semana === diaSemana) {
               matchesDay = true;
-            } else if (!b.recorrente && b.data_inicio && b.data_inicio.slice(0, 10) === dataStr) {
-              matchesDay = true;
+            } else if (!b.recorrente) {
+              const bDate = getLocalDateString(b.data_inicio);
+              if (bDate === dataStr) matchesDay = true;
             }
 
-            if (matchesDay && b.data_inicio && b.data_fim) {
-              const startH = new Date(b.data_inicio).toLocaleTimeString("pt-BR", {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-              });
-              const endH = new Date(b.data_fim).toLocaleTimeString("pt-BR", {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-              });
-              const bStartMin = toMinutes(startH);
-              const bEndMin = toMinutes(endH);
+            if (matchesDay) {
+              const bStartMin = toMinutes(getLocalTimeString(b.data_inicio));
+              const bEndMin = toMinutes(getLocalTimeString(b.data_fim));
 
-              // Conflito se os intervalos se sobrepõem
+              // Se houver sobreposição entre [slotStartMin, slotEndMin) e [bStartMin, bEndMin)
               if (slotStartMin < bEndMin && slotEndMin > bStartMin) {
-                return false;
+                return false; // Horário bloqueado
               }
             }
           }
         }
       }
 
-      // Verifica conflito com agendamentos existentes
-      if (agendamentos && agendamentos.length > 0) {
-        for (const ag of agendamentos) {
-          const agDate = new Date(ag.data_hora);
-          // Extrai data local do agendamento
-          const agDataStr = agDate.toISOString().slice(0, 10);
-          const agHoraStr = agDate.toLocaleTimeString("pt-BR", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-          });
+      // Verifica conflito com agendamentos existentes (mesmo aguardando confirmação)
+      if (agendamentosOcupados && agendamentosOcupados.length > 0) {
+        for (const ag of agendamentosOcupados) {
+          const agLocalDate = getLocalDateString(ag.data_hora);
+          if (agLocalDate !== dataStr) continue; // Outro dia
 
-          // Se o agendamento cai no mesmo dia
-          const agStartMin = toMinutes(agHoraStr);
-          const agDuracao = (ag.servicos as any)?.duracao_minutos || 30;
+          const agStartMin = toMinutes(getLocalTimeString(ag.data_hora));
+          const agDuracao = ag.duracao_minutos || 30;
           const agEndMin = agStartMin + agDuracao;
 
-          // Se sobrepõe com o slot
+          // Se houver sobreposição entre [slotStartMin, slotEndMin) e [agStartMin, agEndMin)
           if (slotStartMin < agEndMin && slotEndMin > agStartMin) {
-            return false;
+            return false; // Horário ocupado por outro cliente
           }
         }
       }
@@ -163,12 +190,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ slots: availableSlots });
   } catch (err: any) {
     console.error("[GET /api/horarios-disponiveis]", err);
-    // Em caso de erro, retorna os slots padrão 07:00 as 22:00
-    const fallback: string[] = [];
-    for (let h = 7; h <= 22; h++) {
-      fallback.push(`${String(h).padStart(2, "0")}:00`);
-      if (h < 22) fallback.push(`${String(h).padStart(2, "0")}:30`);
-    }
-    return NextResponse.json({ slots: fallback });
+    return NextResponse.json({ slots: [] });
   }
 }
