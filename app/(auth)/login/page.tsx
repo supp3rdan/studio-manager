@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useSearchParams } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles, Calendar } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -16,8 +17,12 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>;
 
-export default function LoginPage() {
+function LoginFormContent() {
   const [isLoading, setIsLoading] = useState(false);
+  const searchParams = useSearchParams();
+  const nextUrl = searchParams.get("next") || searchParams.get("redirect");
+  const isAgendamentoFlow = searchParams.get("msg") === "agendar" || (nextUrl && nextUrl.includes("/p/"));
+
   const supabase = createClient();
 
   const {
@@ -46,6 +51,13 @@ export default function LoginPage() {
         return;
       }
 
+      // Se houver URL de retorno (ex: página do profissional para agendar)
+      if (nextUrl && nextUrl.startsWith("/")) {
+        toast.success("Login realizado com sucesso! ✨");
+        window.location.href = nextUrl;
+        return;
+      }
+
       // Detect role to redirect to right portal
       let target = "/dashboard";
       const {
@@ -71,8 +83,12 @@ export default function LoginPage() {
     }
   };
 
+  const registerLink = nextUrl
+    ? `/register?next=${encodeURIComponent(nextUrl)}&tipo=cliente`
+    : "/register";
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden py-10">
       {/* Background glow */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-[#C9A84C]/5 blur-[120px]" />
@@ -80,7 +96,7 @@ export default function LoginPage() {
 
       <div className="relative w-full max-w-md px-4">
         {/* Logo */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#C9A84C]/10 border border-[#C9A84C]/20 mb-4">
             <Sparkles className="w-8 h-8 text-[#C9A84C]" />
           </div>
@@ -93,7 +109,20 @@ export default function LoginPage() {
         </div>
 
         {/* Card */}
-        <div className="bg-surface border border-border rounded-2xl p-8 shadow-2xl">
+        <div className="bg-surface border border-border rounded-2xl p-8 shadow-2xl space-y-6">
+          {/* Banner de aviso se veio do fluxo de agendamento */}
+          {isAgendamentoFlow && (
+            <div className="p-3.5 rounded-xl bg-[#C9A84C]/10 border border-[#C9A84C]/25 flex items-start gap-3">
+              <Calendar className="w-5 h-5 text-[#C9A84C] shrink-0 mt-0.5" />
+              <div className="text-xs text-foreground">
+                <p className="font-semibold text-[#C9A84C]">Identificação necessária</p>
+                <p className="text-muted-foreground mt-0.5">
+                  Entre com sua conta de cliente para prosseguir com seu agendamento.
+                </p>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div>
               <label
@@ -163,13 +192,13 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-muted-foreground mt-6">
+          <p className="text-center text-sm text-muted-foreground">
             Não tem uma conta?{" "}
             <Link
-              href="/register"
+              href={registerLink}
               className="text-[#C9A84C] hover:underline font-medium"
             >
-              Criar conta
+              Criar conta de cliente
             </Link>
           </p>
         </div>
@@ -179,5 +208,19 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-[#C9A84C] animate-spin" />
+        </div>
+      }
+    >
+      <LoginFormContent />
+    </Suspense>
   );
 }

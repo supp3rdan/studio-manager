@@ -175,6 +175,11 @@ export function AgendamentoModal({
   const onSubmit = async (data: FormData) => {
     if (!servico) return;
 
+    if (!clienteUserId) {
+      toast.error("Você precisa se cadastrar como cliente e estar logado(a) para agendar.");
+      return;
+    }
+
     try {
       // Extrai horário "HH:mm" (seja slot formato direto "HH:mm" ou ISO)
       const horaStr = data.slot.length === 5 ? data.slot : format(new Date(data.slot), "HH:mm");
@@ -546,6 +551,15 @@ export function AgendamentoModal({
                 </div>
               </div>
 
+              {!clienteUserId && (
+                <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive">
+                  <p className="font-semibold">Login obrigatório</p>
+                  <p className="mt-0.5">
+                    Você precisa estar conectado à sua conta de cliente para confirmar este agendamento.
+                  </p>
+                </div>
+              )}
+
               <DialogFooter className="gap-2 pt-2">
                 <Button
                   type="button"
@@ -555,12 +569,17 @@ export function AgendamentoModal({
                 >
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isSubmitting || !watchedSlot}>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || !watchedSlot || !clienteUserId}
+                >
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Agendando...
                     </>
+                  ) : !clienteUserId ? (
+                    "Faça login para confirmar"
                   ) : (
                     "Confirmar Agendamento"
                   )}

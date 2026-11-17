@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Sparkles,
@@ -14,9 +14,20 @@ import {
   Loader2,
   Clock,
   User,
+  UserPlus,
+  LogIn,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   getProfissionalByCodigo,
   getServicosDoProfissional,
@@ -39,16 +50,20 @@ const CATEGORIAS: ("Todos" | CategoriaServico)[] = [
   "Depilação",
 ];
 
-export default function PaginaPublicaProfissional() {
+function PaginaPublicaContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const code = (params?.code as string) || "";
+  const servicoIdUrl = searchParams.get("servico");
 
   const [profissional, setProfissional] = useState<Perfil | null>(null);
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [categoriaAtiva, setCategoriaAtiva] = useState<"Todos" | CategoriaServico>("Todos");
   const [selectedServico, setSelectedServico] = useState<Servico | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [pendingServico, setPendingServico] = useState<Servico | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -87,13 +102,43 @@ export default function PaginaPublicaProfissional() {
       });
   }, [code]);
 
+  // Se o usuário veio de um login/cadastro com parâmetro ?servico=... e já está logado
+  useEffect(() => {
+    if (currentUser && servicoIdUrl && servicos.length > 0 && !modalOpen) {
+      const match = servicos.find((s) => s.id === servicoIdUrl);
+      if (match) {
+        setSelectedServico(match);
+        setModalOpen(true);
+      }
+    }
+  }, [currentUser, servicoIdUrl, servicos, modalOpen]);
+
   const servicosFiltrados = servicos.filter(
     (s) => categoriaAtiva === "Todos" || s.categoria === categoriaAtiva
   );
 
   const handleOpenAgendamento = (s: Servico) => {
+    if (!currentUser) {
+      setPendingServico(s);
+      setAuthModalOpen(true);
+      return;
+    }
     setSelectedServico(s);
     setModalOpen(true);
+  };
+
+  const handleIrParaLogin = () => {
+    const returnUrl = pendingServico
+      ? `/p/${code}?servico=${pendingServico.id}`
+      : `/p/${code}`;
+    router.push(`/login?next=${encodeURIComponent(returnUrl)}&msg=agendar`);
+  };
+
+  const handleIrParaCadastro = () => {
+    const returnUrl = pendingServico
+      ? `/p/${code}?servico=${pendingServico.id}`
+      : `/p/${code}`;
+    router.push(`/register?tipo=cliente&next=${encodeURIComponent(returnUrl)}&msg=agendar`);
   };
 
   if (isLoading) {
@@ -163,12 +208,20 @@ export default function PaginaPublicaProfissional() {
                 <span>Meus Agendamentos</span>
               </Link>
             ) : (
-              <Link
-                href="/login"
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
-              >
-                Entrar
-              </Link>
+              <div className="flex items-center gap-1.5">
+                <Link
+                  href={`/login?next=${encodeURIComponent(`/p/${code}`)}`}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
+                >
+                  Entrar
+                </Link>
+                <Link
+                  href={`/register?tipo=cliente&next=${encodeURIComponent(`/p/${code}`)}`}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#C9A84C] hover:bg-[#E8C97A] text-[#0A0A0A] transition-all"
+                >
+                  Cadastre-se
+                </Link>
+              </div>
             )}
             <Link
               href="/buscar"
@@ -300,16 +353,27 @@ export default function PaginaPublicaProfissional() {
                       </div>
 
                       <div className="text-right shrink-0">
-                        <span className="text-lg font-bold text-[#C9A84C]">
-                          {formatCurrency(s.preco_base)}
-                        </span>
+                        {s.promocao_ativa && s.preco_promocional != null ? (
+                          <>
+                            <p className="text-xs text-muted-foreground line-through">
+                              {formatCurrency(s.preco_base)}
+                            </p>
+                            <p className="text-lg font-bold text-[#C9A84C]">
+                              {formatCurrency(s.preco_promocional)}
+                            </p>
+                          </>
+                        ) : (
+                          <span className="text-lg font-bold text-[#C9A84C]">
+                            {formatCurrency(s.preco_base)}
+                          </span>
+                        )}
                       </div>
                     </div>
 
                     <div className="pt-2 border-t border-border/60 flex items-center justify-between">
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5" />
-                        Agendamento online
+                        {s.duracao_minutos ?? 30} min
                       </span>
 
                       <Button
@@ -334,10 +398,83 @@ export default function PaginaPublicaProfissional() {
         <p>Studio Manager · Plataforma de Gestão e Agendamentos</p>
       </footer>
 
+      {/* ── Modal de Requisito de Autenticação ── */}
+      <Dialog open={authModalOpen} onOpenChange={setAuthModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-[#C9A84C]/15 border border-[#C9A84C]/30 flex items-center justify-center shrink-0">
+                <Lock className="w-5 h-5 text-[#C9A84C]" />
+              </div>
+              <div>
+                <DialogTitle>Cadastro e Login Obrigatórios</DialogTitle>
+                <DialogDescription className="text-xs mt-0.5">
+                  Para agendar um horário, você precisa se cadastrar como cliente e estar logado(a).
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {pendingServico && (
+            <div className="p-3.5 rounded-xl bg-surface border border-border my-2">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase">
+                Procedimento selecionado
+              </span>
+              <p className="text-sm font-semibold text-foreground mt-0.5">
+                {pendingServico.nome}
+              </p>
+              <div className="flex items-center justify-between text-xs text-muted-foreground mt-1.5 pt-1.5 border-t border-border">
+                <span>Duração: {pendingServico.duracao_minutos ?? 30} min</span>
+                <span className="font-bold text-[#C9A84C]">
+                  {formatCurrency(
+                    pendingServico.promocao_ativa && pendingServico.preco_promocional != null
+                      ? pendingServico.preco_promocional
+                      : pendingServico.preco_base
+                  )}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2.5 pt-1">
+            <Button
+              onClick={handleIrParaCadastro}
+              className="w-full gap-2 py-5 font-semibold text-sm shadow-lg shadow-[#C9A84C]/20"
+            >
+              <UserPlus className="w-4 h-4" />
+              Criar Cadastro de Cliente
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={handleIrParaLogin}
+              className="w-full gap-2 py-5 border-border hover:bg-white/5 text-sm"
+            >
+              <LogIn className="w-4 h-4" />
+              Já tenho conta (Fazer Login)
+            </Button>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setAuthModalOpen(false)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Cancelar e continuar visualizando
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Modal de Agendamento ── */}
       <AgendamentoModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          setModalOpen(false);
+          setSelectedServico(null);
+        }}
         servico={selectedServico}
         profissional={profissional}
       />
@@ -345,3 +482,17 @@ export default function PaginaPublicaProfissional() {
   );
 }
 
+export default function PaginaPublicaProfissional() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+          <Loader2 className="w-8 h-8 text-[#C9A84C] animate-spin mb-3" />
+          <p className="text-sm text-muted-foreground">Carregando...</p>
+        </div>
+      }
+    >
+      <PaginaPublicaContent />
+    </Suspense>
+  );
+}
