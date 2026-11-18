@@ -52,6 +52,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/redefinir-senha") ||
     pathname.startsWith("/email-confirmado") ||
     pathname.startsWith("/p/") ||
+    pathname.startsWith("/a/") ||
+    pathname.startsWith("/api/cron/") ||
     pathname.startsWith("/buscar") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/agendamentos/publico") ||
@@ -62,14 +64,19 @@ export async function middleware(request: NextRequest) {
   if (!user && !isPublicPath) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
+    // Preserva o destino (ex.: link "Preciso remarcar" do e-mail)
+    redirectUrl.search = "";
+    if (!pathname.startsWith("/api/")) {
+      redirectUrl.searchParams.set("next", pathname + request.nextUrl.search);
+    }
     return NextResponse.redirect(redirectUrl);
   }
 
   // Redirect authenticated users away from auth pages
   if (user && isAuthPage) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/dashboard";
-    return NextResponse.redirect(redirectUrl);
+    const next = request.nextUrl.searchParams.get("next");
+    const destino = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+    return NextResponse.redirect(new URL(destino, request.url));
   }
 
   return supabaseResponse;

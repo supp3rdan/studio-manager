@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { getHorariosDisponiveis } from "@/lib/queries/indisponibilidades";
+import { avisarHorarioLiberado } from "@/lib/queries/agendamentos";
 import { formatDateTime, cn, toManausISO } from "@/lib/utils";
 import type { Agendamento } from "@/types/database";
 
@@ -43,6 +44,8 @@ interface ReagendamentoModalProps {
   onClose: () => void;
   agendamento: Agendamento | null;
   profissionalId: string;
+  /** "cliente": a própria cliente remarca (regra de 2h, avisa o studio por e-mail). */
+  modo?: "profissional" | "cliente";
 }
 
 export function ReagendamentoModal({
@@ -50,6 +53,7 @@ export function ReagendamentoModal({
   onClose,
   agendamento,
   profissionalId,
+  modo = "profissional",
 }: ReagendamentoModalProps) {
   const [slots, setSlots] = useState<string[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -71,9 +75,7 @@ export function ReagendamentoModal({
     setSlots([]);
     setLoadingSlots(true);
     try {
-      const duracao = agendamento.servicos
-        ? (agendamento.servicos as any).duracao_minutos ?? 30
-        : 30;
+      const duracao = agendamento.servicos?.duracao_minutos ?? 30;
       const available = await getHorariosDisponiveis(profissionalId, dateStr, duracao);
       // Converte ISO strings para HH:mm se necessário
       const formatted = available.map((s) => {
@@ -92,21 +94,32 @@ export function ReagendamentoModal({
     if (!agendamento) return;
     setSubmitting(true);
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Não autenticado");
-
       const novaDataHora = toManausISO(data.data, data.hora);
 
-      const { error } = await supabase.rpc("reagendar_agendamento", {
-        p_agendamento_id: agendamento.id,
-        p_profissional_user_id: user.id,
-        p_nova_data_hora: novaDataHora,
-      });
+      if (modo === "cliente") {
+        const res = await fetch(`/api/agendamentos/${agendamento.id}/reagendar`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data_hora: novaDataHora }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error || "Erro ao remarcar");
+        toast.success("Horário remarcado! Enviamos a confirmação por e-mail.");
+      } else {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Não autenticado");
 
-      if (error) throw error;
+        const { error } = await supabase.rpc("reagendar_agendamento", {
+          p_agendamento_id: agendamento.id,
+          p_profissional_user_id: user.id,
+          p_nova_data_hora: novaDataHora,
+        });
+        if (error) throw error;
+        avisarHorarioLiberado(agendamento.data_hora);
+        toast.success("Agendamento reagendado com sucesso!");
+      }
 
-      toast.success("Agendamento reagendado com sucesso!");
       reset();
       setSlots([]);
       onClose();
@@ -136,7 +149,9 @@ export function ReagendamentoModal({
             Reagendar Atendimento
           </DialogTitle>
           <DialogDescription>
-            Selecione nova data e horário. Os outros dados serão mantidos.
+            {modo === "cliente"
+              ? "Escolha um novo dia e horário. O studio será avisado por e-mail."
+              : "Selecione nova data e horário. Os outros dados serão mantidos."}
           </DialogDescription>
         </DialogHeader>
 
@@ -146,7 +161,9 @@ export function ReagendamentoModal({
             Agendamento atual
           </p>
           <p className="text-sm font-semibold text-foreground">
-            {agendamento.clientes?.nome || "Cliente"}
+            {modo === "cliente"
+              ? agendamento.profissional?.nome_studio || agendamento.profissional?.nome || "Studio"
+              : agendamento.clientes?.nome || "Cliente"}
             {agendamento.servicos?.nome && (
               <span className="text-[#C9A84C]"> · {agendamento.servicos.nome}</span>
             )}

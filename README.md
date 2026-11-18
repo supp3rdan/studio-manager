@@ -143,6 +143,7 @@ No painel do Supabase → **SQL Editor**, execute os arquivos em ordem:
 | 010 | `010_cancelamento_cliente_e_reagendamento.sql` | Cancelamento pela cliente (2h) e reagendamento pelo profissional |
 | 011 | `011_fuso_horario_manaus.sql` | Fuso horário padrão America/Manaus |
 | 012 | `012_seguranca_agendamentos.sql` | Segurança: conflito de horário no banco, RPCs com `auth.uid()`, RLS revisado, índices |
+| 013 | `013_expediente_lembretes_lista_espera.sql` | Expediente configurável, lembretes com confirmação, remarcação pela cliente, lista de espera |
 
 ### 5. Inicie o servidor
 ```bash

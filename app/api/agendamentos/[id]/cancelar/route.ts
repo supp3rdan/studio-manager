@@ -3,6 +3,8 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { notificarCancelamento } from "@/lib/email";
 import { rpcErrorResponse } from "@/lib/api-errors";
+import { notificarListaEspera } from "@/lib/lista-espera";
+import { getManausDateString } from "@/lib/utils";
 
 type Relacao<T> = T | T[] | null;
 function primeiro<T>(rel: Relacao<T>): T | null {
@@ -11,6 +13,7 @@ function primeiro<T>(rel: Relacao<T>): T | null {
 
 interface AgendamentoParaNotificar {
   id: string;
+  user_id: string;
   data_hora: string;
   local: string;
   clientes: Relacao<{ nome: string | null; whatsapp: string | null }>;
@@ -48,7 +51,7 @@ export async function POST(
       .from("agendamentos")
       .select(
         `
-        id, data_hora, local,
+        id, user_id, data_hora, local,
         clientes ( nome, whatsapp ),
         servicos ( nome ),
         profissional:perfis!agendamentos_user_id_fkey ( nome, nome_studio, email, whatsapp )
@@ -83,7 +86,7 @@ export async function POST(
       const servico = primeiro(agBefore.servicos);
       const prof = primeiro(agBefore.profissional);
 
-      notificarCancelamento({
+      await notificarCancelamento({
         clienteNome: cliente?.nome || perfilCliente?.nome || "Cliente",
         clienteEmail: perfilCliente?.email || user.email || null,
         clienteWhatsapp: cliente?.whatsapp || null,
@@ -95,6 +98,13 @@ export async function POST(
         dataHora: agBefore.data_hora,
         local: agBefore.local,
       }).catch((err) => console.error("[Email cancelamento]:", err));
+    }
+
+    // O horário liberado pode servir a quem está na lista de espera
+    if (agBefore) {
+      await notificarListaEspera(agBefore.user_id, getManausDateString(agBefore.data_hora)).catch(
+        (err) => console.error("[Lista de espera]:", err)
+      );
     }
 
     return NextResponse.json({ success: true, ...(rpcResult ?? {}) });

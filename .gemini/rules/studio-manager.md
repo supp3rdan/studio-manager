@@ -16,7 +16,7 @@
 - **Tema visual:** Dark & Gold (`bg-surface` / `#C9A84C`) — nunca altere o tema sem pedido explícito
 - **Idioma da UI:** Português (pt-BR) — SEMPRE
 - **Git workflow:** feature → branch `testes` → merge → `main` → push ambos
-- **Versão atual:** 0.12.0 (ver `CHANGELOG.md`)
+- **Versão atual:** 0.13.0 (ver `CHANGELOG.md`)
 
 ---
 
@@ -45,7 +45,7 @@ ativo BOOLEAN (default true)
 ### `clientes`
 ```
 id, user_id FK (profissional dono)
-nome NOT NULL, whatsapp, email, observacoes
+nome NOT NULL, whatsapp   (NÃO tem coluna email — e-mail da cliente vem de perfis/auth.users via cliente_user_id)
 ```
 
 ### `agendamentos`
@@ -56,6 +56,27 @@ valor_final NUMERIC, forma_pagamento TEXT (suporta "Pix + Dinheiro")
 status: 'Agendado'|'Confirmado'|'Concluído'|'Cancelado'|'Não Compareceu'
 local: 'Studio' | 'Domicílio'
 observacoes TEXT
+token_publico UUID UNIQUE (link /a/[token] do lembrete)
+lembrete_enviado_em, confirmado_em TIMESTAMPTZ (trigger zera ambos quando data_hora muda)
+```
+
+### `expedientes` (sem linhas = padrão 07:00–22:30 todos os dias)
+```
+PK (user_id, dia_semana 0-6), ativo BOOLEAN, inicio TIME, fim TIME (= término máximo do atendimento)
+perfis.agenda_intervalo_min (grade: 10|15|20|30|40|45|60, default 30)
+perfis.agenda_buffer_min (intervalo entre atendimentos, 0-120, default 0)
+```
+
+### `lista_espera`
+```
+id, profissional_id, cliente_user_id, servico_id, data DATE
+status: 'aguardando'|'notificado'|'atendido'|'expirado'; UNIQUE(prof, cliente, servico, data)
+INSERT só via RPC entrar_lista_espera; cliente/profissional podem SELECT/DELETE as próprias
+```
+
+### `sm_config` (privada, RLS sem políticas)
+```
+chave 'cron_secret' → mesmo valor da env CRON_SECRET na Vercel
 ```
 
 ### `indisponibilidades`
@@ -76,9 +97,18 @@ dia_semana INTEGER | null (0=Dom...6=Sáb, quando recorrente)
 
 | Função | Params | Acesso | Uso |
 |---|---|---|---|
-| `horarios_disponiveis_publico` | `prof_id, data DATE, duracao INT=30` | anon, auth | **Fonte única** de slots livres (retorna `horario TEXT` "HH:mm") |
+| `horarios_disponiveis_publico` | `prof_id, data DATE, duracao INT=30` | anon, auth | Slots livres públicos ("HH:mm") → delega p/ `sm_slots_livres` |
+| `sm_slots_livres` | `prof_id, data, duracao, ignorar_ag?` | interno | **Fonte única**: expediente + grade + buffer + conflitos + só futuro |
+| `sm_expediente_do_dia` | `prof_id, data` | interno | `(aberto, inicio_min, fim_min, intervalo_min, buffer_min)` |
+| `salvar_expediente` | `dias JSONB[7], intervalo, buffer` | auth (profissional) | Salva expediente |
+| `conflitos_agenda` | `data_hora, duracao, ignorar_ag?` | auth | Lista conflitos (agendamento/bloqueio/expediente) p/ o form manual |
+| `agendamento_por_token` / `confirmar_presenca` | `token UUID` | anon, auth | Página `/a/[token]` |
+| `reagendar_agendamento_cliente` | `ag_id, nova_data_hora` | auth (cliente) | Remarcação pela cliente (>2h), valida slot |
+| `entrar_lista_espera` | `codigo_prof, servico_id, data` | auth | Entra na fila (máx. 10 ativas) |
+| `lista_espera_do_profissional` / `minha_lista_espera` | — | auth | Leitura com nomes |
+| `sm_lembretes_pendentes` / `sm_marcar_lembretes_enviados` / `sm_lista_espera_notificar` | `segredo, ...` | anon (gated por `CRON_SECRET`) | Usadas só no servidor (`lib/lista-espera.ts`, cron) |
 | `get_horarios_disponiveis` | idem | anon, auth | Legado → delega p/ a de cima |
-| `sm_horario_conflita` | `prof_id, inicio, fim, ignorar_ag?, checar_bloqueios?=true` | interno | Helper de conflito (agendamentos ativos + bloqueios) |
+| `sm_horario_conflita` | `prof_id, inicio, fim, ignorar_ag?, checar_bloqueios?=true` | interno | Helper de conflito (agendamentos ativos + buffer + bloqueios) |
 | `criar_agendamento_publico` | `codigo_prof, servico_id, data_hora, local, forma_pagamento, cliente_nome, whatsapp, email?, _cliente_user_id?, observacoes?` | auth | Cria agendamento; lock por profissional + valida grade/conflito |
 | `cancelar_agendamento_cliente` | `ag_id, _cliente_user_id` | auth | Cliente cancela (>2h de antecedência) |
 | `reagendar_agendamento` | `ag_id, _prof_user_id, nova_data_hora` | auth | Profissional reagenda (sem sobrepor outro agendamento) |
@@ -96,7 +126,8 @@ dia_semana INTEGER | null (0=Dom...6=Sáb, quando recorrente)
 ```
 /                     → redirect /buscar ou /dashboard
 /buscar               → buscar profissional por código 4 dígitos
-/p/[code]             → perfil público + catálogo + agendamento (login required para agendar)
+/p/[code]             → perfil público + catálogo + agendamento (login required para agendar) + "Avise-me se abrir horário"
+/a/[token]            → confirmação de presença / remarcar (link do e-mail de lembrete)
 /login                → auth; ?next= para redirect pós-login
 /register             → cadastro; ?tipo=cliente|profissional, ?next=
 /recuperar-senha      → solicitar reset
@@ -121,7 +152,10 @@ dia_semana INTEGER | null (0=Dom...6=Sáb, quando recorrente)
 ### API Routes
 ```
 POST /api/agendamentos/publico      → criar agendamento (exige sessão; body validado c/ Zod; 409 = horário ocupado)
-POST /api/agendamentos/[id]/cancelar → cancelar agendamento (cliente autenticado, 2h+ antecedência)
+POST /api/agendamentos/[id]/cancelar → cancelar agendamento (cliente autenticado, 2h+ antecedência) + avisa lista de espera
+POST /api/agendamentos/[id]/reagendar → cliente remarca (2h+) + e-mails + avisa lista de espera
+POST /api/agenda/horario-liberado    → painel do profissional avisa lista de espera ({ data })
+GET  /api/cron/diario               → Vercel Cron 13:00 UTC; Bearer CRON_SECRET; lembretes + varredura da lista de espera
 GET  /api/horarios-disponiveis      → { slots: ["HH:mm"] } (?profissional_id=&data=YYYY-MM-DD&duracao=)
 GET  /api/auth/callback             → callback Supabase Auth
 ```
@@ -143,7 +177,11 @@ lib/queries/indisponibilidades.ts → CRUD bloqueios, getHorariosDisponiveis (la
 ```
 lib/supabase/url.ts     → getSupabaseUrl(), getSupabaseAnonKey() (únicos pontos de leitura das env vars)
 lib/api-errors.ts       → rpcErrorResponse(), validationErrorResponse()
-lib/email.ts            → notificarAgendamento/Cancelamento (Resend); escapeHtml() em todo dado de usuário
+lib/email.ts            → Resend: sendResendEmail, sendResendBatch (/emails/batch, até 100), templates (layoutEmail/cartao/botao); escapeHtml() em todo dado de usuário
+lib/lista-espera.ts     → getSistemaClient(), getCronSecret(), notificarListaEspera(prof?, data?) — só no servidor
+lib/app-url.ts          → getAppUrl() p/ links de e-mail (NEXT_PUBLIC_APP_URL → VERCEL_PROJECT_PRODUCTION_URL → URL de produção)
+lib/queries/expediente.ts → getConfigExpediente(), salvarConfigExpediente()
+vercel.json             → crons
 .github/workflows/ci.yml → lint + tsc + build em PR/push na main
 ```
 
@@ -152,8 +190,10 @@ lib/email.ts            → notificarAgendamento/Cancelamento (Resend); escapeHt
 components/publico/agendamento-modal.tsx    → modal de agendamento (clientes, login obrigatório)
 components/servicos/servico-form.tsx        → CRUD serviço (duração, promoção, categoria)
 components/servicos/indisponibilidade-modal.tsx → bloquear horários/dias
-components/agendamentos/agendamento-form.tsx   → form do profissional
-components/agendamentos/reagendamento-modal.tsx → modal de reagendamento (profissional, busca slots disponíveis)
+components/agendamentos/agendamento-form.tsx   → form do profissional (checa conflitos_agenda → "Encaixar mesmo assim")
+components/agendamentos/reagendamento-modal.tsx → reagendamento; prop modo="profissional"|"cliente"
+components/servicos/expediente-config.tsx       → configuração de expediente (aba Disponibilidade de /servicos)
+components/publico/confirmacao-agendamento.tsx  → UI da página /a/[token]
 components/agendamentos/calendario-semanal.tsx  → view semanal com toggle lista/calendário
 components/ui/payment-selector.tsx          → pagamento misto
 components/layout/app-shell.tsx             → layout autenticado
@@ -186,7 +226,7 @@ types/database.ts                           → todos os tipos TS do projeto
 
 ## REGRAS DE NEGÓCIO (IMUTÁVEIS SEM PEDIDO EXPLÍCITO)
 
-1. **Horários:** início 07h00–22h00, slots de 30 em 30 min, término até 22h30; só horários futuros (filtrado no servidor)
+1. **Horários:** definidos pelo expediente do profissional (padrão 07:00–22:30, grade de 30 min); término ≤ fim do expediente; buffer entre atendimentos; só horários futuros (filtrado no servidor)
 2. **Duração padrão:** 30 min; Cílios = 60 min; Depilação = 60 min
 3. **Login obrigatório** para agendar (cliente não logado → modal auth com redirect)
 4. **Slots ocultos para cliente:** qualquer slot com agendamento ativo (status ≠ Cancelado/Não Compareceu) OU com indisponibilidade cadastrada
@@ -197,7 +237,10 @@ types/database.ts                           → todos os tipos TS do projeto
 9. **Faturamento:** exclui status 'Cancelado' e 'Não Compareceu' de todos os cálculos
 10. **Valor do agendamento público:** usa `preco_promocional` se `promocao_ativa = true`, senão `preco_base`
 11. **Conflito de horário:** validado NO BANCO (`sm_horario_conflita` + `pg_advisory_xact_lock` por profissional). O front só exibe; nunca é a garantia
-12. **Cancelamento pela cliente:** só status Agendado/Confirmado e com >2h de antecedência
+12. **Cancelamento e remarcação pela cliente:** só status Agendado/Confirmado e com >2h de antecedência
+13. **Lembrete:** cron diário envia para `Agendado` de agora+2h até o fim de amanhã (criados há >1h, sem lembrete). Confirmar exige clique na página (filtros de e-mail visitam links)
+14. **Liberou horário → avisar lista de espera:** cancelamento, falta, exclusão, mudança de data/hora ou remarcação devem chamar `notificarListaEspera` (servidor) ou `avisarHorarioLiberado` (painel)
+15. **Profissional pode encaixar** sobre conflito no form manual (decisão consciente); público/cliente nunca
 
 ---
 
@@ -224,6 +267,8 @@ types/database.ts                           → todos os tipos TS do projeto
 - ❌ Calcular disponibilidade em TS ou no front → ✅ alterar só `horarios_disponiveis_publico`/`sm_horario_conflita`
 - ❌ Interpolar dado do usuário em HTML de e-mail → ✅ `escapeParams`/`escapeHtml`
 - ❌ Fallback que exibe grade cheia em caso de erro → ✅ lançar erro + toast
+- ❌ Ler `SUPABASE_SERVICE_ROLE_KEY` para tarefas de sistema → ✅ RPC `sm_*` com `p_segredo` (CRON_SECRET) validado em `sm_validar_segredo`
+- ❌ Disparar e-mail sem `await` em rota (Vercel congela a função) → ✅ `await` (com `.catch` para não quebrar a resposta)
 - ✅ Toda RPC nova: `SET search_path = public`, `REVOKE ALL ... FROM PUBLIC` e `GRANT` explícito (por padrão o Postgres concede EXECUTE a PUBLIC)
 
 ---
@@ -233,7 +278,8 @@ types/database.ts                           → todos os tipos TS do projeto
 - Envolver em `BEGIN; ... COMMIT;` e ser **idempotente** (`IF NOT EXISTS`, `DROP ... IF EXISTS`, `CREATE OR REPLACE`)
 - Mudou tipo de retorno/params de função? `CREATE OR REPLACE` falha ("cannot change return type") → remover todas as sobrecargas via `DO $$ ... pg_proc ... DROP FUNCTION $$` (ver 012)
 - Preferir manter assinaturas antigas (params ignorados) para o código em produção não quebrar
-- **Ordem de deploy:** código compatível com banco antigo E novo → merge na `main` (Vercel) → depois o usuário roda o SQL no SQL Editor. Sempre informar ao usuário qual arquivo rodar e quando
+- **Ordem de deploy:** se a migration é só aditiva e compatível com o código em produção → SQL primeiro, depois merge (caso da 013). Se o código novo precisa funcionar com o banco antigo → merge primeiro, depois SQL (caso da 012). Sempre informar ao usuário qual arquivo rodar e quando
+- plpgsql `RETURNS TABLE (id ..., data ...)`: as colunas viram variáveis — **sempre qualifique** colunas (`le.id`) para evitar ambiguidade
 - Testar localmente (Postgres 16 com stub de `auth.uid()` lendo `request.jwt.claim.sub`) quando possível
 
 ---
@@ -244,6 +290,8 @@ types/database.ts                           → todos os tipos TS do projeto
 npx tsc --noEmit && npm run lint && npm run build
 ```
 Build exige `NEXT_PUBLIC_SUPABASE_URL`/`ANON_KEY` (valores fictícios servem) e acesso ao Google Fonts (`next/font` Inter).
+
+**Env vars de produção (Vercel):** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (domínio verificado), `CRON_SECRET` (= `sm_config.cron_secret`), opcional `NEXT_PUBLIC_APP_URL`. Plano Hobby da Vercel: cron no máximo 1x/dia.
 
 ---
 
@@ -263,11 +311,12 @@ Build exige `NEXT_PUBLIC_SUPABASE_URL`/`ANON_KEY` (valores fictícios servem) e 
 | 010 | `010_cancelamento_cliente_e_reagendamento.sql` | RPC `cancelar_agendamento_cliente` (2h+ antecedência); RPC `reagendar_agendamento` (profissional) |
 | 011 | `011_fuso_horario_manaus.sql` | Fuso horário padrão ajustado para Manaus/AM (`America/Manaus`, UTC-4, offset `-04:00`) |
 | 012 | `012_seguranca_agendamentos.sql` | Conflito de horário no banco c/ lock; RPCs c/ `auth.uid()`; remove RLS públicas; `horarios_disponiveis_publico`; índices |
+| 013 | `013_expediente_lembretes_lista_espera.sql` | Expediente/buffer; lembrete + confirmação por token; remarcação pela cliente; conflitos_agenda; lista de espera; sm_config/CRON_SECRET |
 
 > 006 e 011 falhavam silenciosamente em `get_horarios_disponiveis` (tipo de retorno); a 012 corrige.
 > 012 aplicada em produção (18/11/2026); fallback legado da API de horários removido.
 
-**Próxima migration:** `013_...sql`
+**Próxima migration:** `014_...sql`
 
 ---
 

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Plus, Pencil, Trash2, CalendarDays, Filter, ChevronDown,
-  FileDown, Loader2, List, CalendarRange, RefreshCw,
+  FileDown, Loader2, List, CalendarRange, RefreshCw, Phone, BellRing, Hourglass, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,22 +22,47 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { AgendamentoForm } from "@/components/agendamentos/agendamento-form";
 import { ReagendamentoModal } from "@/components/agendamentos/reagendamento-modal";
 import { CalendarioSemanal } from "@/components/agendamentos/calendario-semanal";
-import { getAgendamentos, deleteAgendamento, updateAgendamento } from "@/lib/queries/agendamentos";
+import {
+  getAgendamentos, deleteAgendamento, updateAgendamento, avisarHorarioLiberado,
+  getListaEsperaProfissional, removerDaListaEspera,
+} from "@/lib/queries/agendamentos";
 import { generateAgendamentosPDF } from "@/lib/pdf-report";
 import { createClient } from "@/lib/supabase/client";
 import {
-  formatCurrency, formatDateTime, getStatusColor, cn,
+  formatCurrency, formatDateTime, formatDate, getStatusColor, getWhatsAppUrl, cn,
 } from "@/lib/utils";
-import type { Agendamento, StatusAgendamento } from "@/types/database";
+import type { Agendamento, ListaEsperaProfissional, StatusAgendamento } from "@/types/database";
 
 const ALL_STATUSES: StatusAgendamento[] = [
   "Agendado", "Confirmado", "Concluído", "Cancelado", "Não Compareceu",
 ];
 
+const FILTRO_AGUARDANDO = "aguardando_confirmacao";
+
 const STATUS_OPTIONS = [
   { value: "all", label: "Todos os status" },
+  { value: FILTRO_AGUARDANDO, label: "⏳ Aguardando confirmação" },
   ...ALL_STATUSES.map((s) => ({ value: s, label: s })),
 ];
+
+const STATUS_ATIVOS: StatusAgendamento[] = ["Agendado", "Confirmado"];
+
+/** Agendado (ainda não confirmado) nas próximas 48 horas. */
+function aguardandoConfirmacao(ag: Agendamento): boolean {
+  if (ag.status !== "Agendado") return false;
+  const diff = new Date(ag.data_hora).getTime() - Date.now();
+  return diff > 0 && diff <= 48 * 60 * 60 * 1000;
+}
+
+function linkWhatsAppConfirmacao(ag: Agendamento): string | null {
+  const base = getWhatsAppUrl(ag.clientes?.whatsapp);
+  if (!base) return null;
+  const nome = (ag.clientes?.nome ?? "").split(" ")[0];
+  const texto =
+    `Oi${nome ? `, ${nome}` : ""}! Tudo bem? 💛 Passando para confirmar seu horário de ` +
+    `${ag.servicos?.nome ?? "atendimento"} em ${formatDateTime(ag.data_hora)}. Posso confirmar?`;
+  return `${base}?text=${encodeURIComponent(texto)}`;
+}
 
 type ViewMode = "lista" | "calendario";
 
@@ -57,6 +82,9 @@ function StatusSelector({
     setLoading(true);
     try {
       await updateAgendamento(agendamento.id, { status });
+      if (STATUS_ATIVOS.includes(agendamento.status) && !STATUS_ATIVOS.includes(status)) {
+        avisarHorarioLiberado(agendamento.data_hora);
+      }
       toast.success(`Status alterado para "${status}"`);
       onUpdated();
     } catch {
@@ -129,8 +157,10 @@ export default function AgendamentosPage() {
   const [reagendamentoTarget, setReagendamentoTarget] = useState<Agendamento | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("lista");
   const [profissionalId, setProfissionalId] = useState<string | null>(null);
+  const [listaEspera, setListaEspera] = useState<ListaEsperaProfissional[]>([]);
 
   const load = useCallback(async () => {
+    getListaEsperaProfissional().then(setListaEspera).catch(() => setListaEspera([]));
     try {
       const data = await getAgendamentos();
       setAgendamentos(data);
@@ -150,13 +180,32 @@ export default function AgendamentosPage() {
     });
   }, [load]);
 
-  const filtered = agendamentos.filter(
-    (a) => statusFilter === "all" || a.status === statusFilter
+  const filtered = agendamentos.filter((a) =>
+    statusFilter === "all"
+      ? true
+      : statusFilter === FILTRO_AGUARDANDO
+        ? aguardandoConfirmacao(a)
+        : a.status === statusFilter
   );
+  if (statusFilter === FILTRO_AGUARDANDO) {
+    filtered.sort((a, b) => a.data_hora.localeCompare(b.data_hora));
+  }
+  const qtdAguardando = agendamentos.filter(aguardandoConfirmacao).length;
+
+  const handleRemoverEspera = async (id: string) => {
+    try {
+      await removerDaListaEspera(id);
+      setListaEspera((prev) => prev.filter((e) => e.id !== id));
+    } catch {
+      toast.error("Erro ao remover da lista de espera");
+    }
+  };
 
   const handleDelete = async (id: string) => {
+    const alvo = agendamentos.find((a) => a.id === id);
     try {
       await deleteAgendamento(id);
+      if (alvo && STATUS_ATIVOS.includes(alvo.status)) avisarHorarioLiberado(alvo.data_hora);
       toast.success("Agendamento removido");
       load();
     } catch {
@@ -211,6 +260,69 @@ export default function AgendamentosPage() {
           </Button>
         </div>
       </div>
+
+      {/* Aguardando confirmação */}
+      {qtdAguardando > 0 && statusFilter !== FILTRO_AGUARDANDO && (
+        <button
+          onClick={() => setStatusFilter(FILTRO_AGUARDANDO)}
+          className="w-full flex items-center gap-3 p-3.5 rounded-xl bg-blue-400/10 border border-blue-400/25 text-left text-sm hover:bg-blue-400/15 transition-colors"
+        >
+          <Hourglass className="w-4 h-4 text-blue-400 shrink-0" />
+          <span className="text-muted-foreground">
+            <strong className="text-foreground">{qtdAguardando}</strong>{" "}
+            {qtdAguardando === 1 ? "cliente ainda não confirmou" : "clientes ainda não confirmaram"} o horário das próximas 48h.{" "}
+            <span className="text-blue-400 font-medium">Ver e chamar no WhatsApp →</span>
+          </span>
+        </button>
+      )}
+
+      {/* Lista de espera */}
+      {listaEspera.length > 0 && (
+        <div className="rounded-xl border border-border bg-surface p-4 space-y-2">
+          <p className="text-sm font-medium text-foreground">
+            Lista de espera <span className="text-muted-foreground font-normal">({listaEspera.length})</span>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Quando um horário desses dias é liberado, avisamos por e-mail automaticamente.
+          </p>
+          <div className="divide-y divide-border">
+            {listaEspera.map((e) => {
+              const whats = getWhatsAppUrl(e.cliente_whatsapp);
+              return (
+                <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                  <div>
+                    <span className="font-medium text-foreground">{e.cliente_nome}</span>
+                    <span className="text-muted-foreground"> · {e.servico_nome} · {formatDate(e.data + "T12:00:00-04:00")}</span>
+                    {e.status === "notificado" && (
+                      <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full border border-emerald-400/30 text-emerald-400">
+                        avisada
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {whats && (
+                      <a href={whats} target="_blank" rel="noopener noreferrer">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-400" title="WhatsApp">
+                          <Phone className="w-3.5 h-3.5" />
+                        </Button>
+                      </a>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground"
+                      title="Remover da lista"
+                      onClick={() => handleRemoverEspera(e.id)}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Filtros + Toggle de visualização */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
@@ -329,10 +441,33 @@ export default function AgendamentosPage() {
                       {ag.local}
                     </TableCell>
                     <TableCell>
-                      <StatusSelector agendamento={ag} onUpdated={load} />
+                      <div className="flex flex-col items-start gap-1">
+                        <StatusSelector agendamento={ag} onUpdated={load} />
+                        {ag.status === "Agendado" && ag.lembrete_enviado_em && (
+                          <span
+                            className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
+                            title={`Lembrete enviado em ${formatDateTime(ag.lembrete_enviado_em)}`}
+                          >
+                            <BellRing className="w-3 h-3" /> lembrete enviado
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {/* WhatsApp para quem não confirmou */}
+                        {aguardandoConfirmacao(ag) && linkWhatsAppConfirmacao(ag) && (
+                          <a href={linkWhatsAppConfirmacao(ag)!} target="_blank" rel="noopener noreferrer">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10"
+                              title="Pedir confirmação no WhatsApp"
+                            >
+                              <Phone className="w-3.5 h-3.5" />
+                            </Button>
+                          </a>
+                        )}
                         {/* Reagendar */}
                         {!["Concluído", "Cancelado", "Não Compareceu"].includes(ag.status) && (
                           <Button
