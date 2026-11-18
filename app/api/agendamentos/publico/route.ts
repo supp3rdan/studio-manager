@@ -84,8 +84,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // E-mails em segundo plano (não bloqueiam a resposta)
-    notificarAgendamento({
+    // Aguarda o envio: na Vercel, promessas soltas após a resposta podem ser
+    // interrompidas quando a função é congelada.
+    await notificarAgendamento({
       clienteNome: body.cliente_nome,
       clienteEmail,
       clienteWhatsapp: cleanWhatsapp || null,

@@ -5,7 +5,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Loader2, CalendarIcon, Clock } from "lucide-react";
+import { Loader2, CalendarIcon, Clock, AlertTriangle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -29,12 +29,18 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { createAgendamento, updateAgendamento } from "@/lib/queries/agendamentos";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  createAgendamento, updateAgendamento, getConflitosAgenda, avisarHorarioLiberado,
+} from "@/lib/queries/agendamentos";
 import { getClientes } from "@/lib/queries/clientes";
 import { getServicos } from "@/lib/queries/servicos";
 import { cn, getManausDateString, formatTime, toManausISO } from "@/lib/utils";
 import { PaymentSelector } from "@/components/ui/payment-selector";
-import type { Agendamento, Cliente, Servico } from "@/types/database";
+import type { Agendamento, Cliente, ConflitoAgenda, Servico } from "@/types/database";
 
 const schema = z.object({
   cliente_id: z.string().min(1, "Selecione um cliente"),
@@ -51,6 +57,10 @@ const schema = z.object({
 });
 
 type FormData = z.infer<typeof schema>;
+
+type Payload = Omit<Agendamento, "id" | "user_id" | "criado_em" | "atualizado_em" | "clientes" | "servicos">;
+
+const STATUS_ATIVOS = ["Agendado", "Confirmado"];
 
 interface AgendamentoFormProps {
   open: boolean;
@@ -76,6 +86,9 @@ export function AgendamentoForm({ open, onClose, agendamento }: AgendamentoFormP
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [conflitos, setConflitos] = useState<ConflitoAgenda[]>([]);
+  const [payloadPendente, setPayloadPendente] = useState<Payload | null>(null);
+  const [salvandoForcado, setSalvandoForcado] = useState(false);
 
   const {
     register,
@@ -151,29 +164,67 @@ export function AgendamentoForm({ open, onClose, agendamento }: AgendamentoFormP
 
   const watchedData = watch("data");
 
-  const onSubmit = async (data: FormData) => {
-    try {
-      const payload = {
-        cliente_id: data.cliente_id,
-        servico_id: data.servico_id,
-        data_hora: buildISOString(data.data, data.hora),
-        valor_final: data.valor_final,
-        forma_pagamento: data.forma_pagamento ?? null,
-        status: data.status,
-        local: data.local,
-        observacoes: data.observacoes ?? null,
-      };
+  /** Grava e avisa a lista de espera se um horário antigo foi liberado. */
+  const salvar = async (payload: Payload) => {
+    if (isEditing && agendamento) {
+      await updateAgendamento(agendamento.id, payload);
+      const mudouHorario = payload.data_hora !== agendamento.data_hora;
+      const liberou =
+        STATUS_ATIVOS.includes(agendamento.status) &&
+        (mudouHorario || !STATUS_ATIVOS.includes(payload.status));
+      if (liberou) avisarHorarioLiberado(agendamento.data_hora);
+      toast.success("Agendamento atualizado ✓");
+    } else {
+      await createAgendamento(payload);
+      toast.success("Agendamento criado com sucesso ✓");
+    }
+    onClose();
+  };
 
-      if (isEditing) {
-        await updateAgendamento(agendamento.id, payload);
-        toast.success("Agendamento atualizado ✓");
-      } else {
-        await createAgendamento(payload);
-        toast.success("Agendamento criado com sucesso ✓");
+  const onSubmit = async (data: FormData) => {
+    const payload: Payload = {
+      cliente_id: data.cliente_id,
+      servico_id: data.servico_id,
+      data_hora: buildISOString(data.data, data.hora),
+      valor_final: data.valor_final,
+      forma_pagamento: data.forma_pagamento ?? null,
+      status: data.status,
+      local: data.local,
+      observacoes: data.observacoes ?? null,
+    };
+
+    try {
+      // Checa conflito só quando há horário definido e o agendamento está ativo
+      if (data.hora && STATUS_ATIVOS.includes(data.status)) {
+        const duracao = servicos.find((s) => s.id === data.servico_id)?.duracao_minutos ?? 30;
+        try {
+          const encontrados = await getConflitosAgenda(payload.data_hora, duracao, agendamento?.id);
+          if (encontrados.length > 0) {
+            setConflitos(encontrados);
+            setPayloadPendente(payload);
+            return;
+          }
+        } catch (err) {
+          console.warn("[conflitos_agenda] checagem indisponível:", err);
+        }
       }
-      onClose();
+      await salvar(payload);
     } catch (err: any) {
       toast.error("Erro ao salvar agendamento", { description: err?.message });
+    }
+  };
+
+  const encaixarMesmoAssim = async () => {
+    if (!payloadPendente) return;
+    setSalvandoForcado(true);
+    try {
+      await salvar(payloadPendente);
+    } catch (err: any) {
+      toast.error("Erro ao salvar agendamento", { description: err?.message });
+    } finally {
+      setSalvandoForcado(false);
+      setConflitos([]);
+      setPayloadPendente(null);
     }
   };
 
@@ -422,6 +473,51 @@ export function AgendamentoForm({ open, onClose, agendamento }: AgendamentoFormP
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <AlertDialog
+        open={conflitos.length > 0}
+        onOpenChange={(o) => {
+          if (!o) {
+            setConflitos([]);
+            setPayloadPendente(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-400" />
+              Esse horário tem conflito
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <ul className="space-y-1.5">
+                  {conflitos.map((c, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-border shrink-0">
+                        {c.tipo === "agendamento" ? "Agendamento" : c.tipo === "bloqueio" ? "Bloqueio" : "Expediente"}
+                      </span>
+                      <span className="text-foreground">
+                        {c.descricao}
+                        {c.tipo === "agendamento" && (
+                          <span className="text-muted-foreground"> · {formatTime(c.inicio)}</span>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p>Quer encaixar mesmo assim?</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={salvandoForcado}>Escolher outro horário</AlertDialogCancel>
+            <AlertDialogAction onClick={encaixarMesmoAssim} disabled={salvandoForcado}>
+              {salvandoForcado ? <Loader2 className="w-4 h-4 animate-spin" /> : "Encaixar mesmo assim"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

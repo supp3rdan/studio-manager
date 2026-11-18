@@ -5,7 +5,7 @@ import Link from "next/link";
 import { differenceInHours, parseISO } from "date-fns";
 import {
   CalendarDays, Phone, Sparkles, Search, Clock,
-  MapPin, CreditCard, XCircle, Loader2, AlertTriangle,
+  MapPin, CreditCard, XCircle, Loader2, AlertTriangle, CalendarClock, Hourglass, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,9 +24,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { getAgendamentosDoCliente } from "@/lib/queries/perfis";
 import {
-  formatCurrency, formatDateTime, getStatusColor, getWhatsAppUrl, cn,
+  getAgendamentosDoCliente, getMinhaListaEspera, sairDaListaEspera, type MinhaListaEspera,
+} from "@/lib/queries/perfis";
+import { ReagendamentoModal } from "@/components/agendamentos/reagendamento-modal";
+import {
+  formatCurrency, formatDate, formatDateTime, getStatusColor, getWhatsAppUrl, cn,
 } from "@/lib/utils";
 import type { Agendamento } from "@/types/database";
 
@@ -48,11 +51,22 @@ export default function ClienteAgendamentosPage() {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [cancelando, setCancelando] = useState<string | null>(null);
+  const [remarcando, setRemarcando] = useState<Agendamento | null>(null);
+  const [listaEspera, setListaEspera] = useState<MinhaListaEspera[]>([]);
 
   const load = useCallback(async () => {
+    getMinhaListaEspera().then(setListaEspera).catch(() => setListaEspera([]));
     try {
       const data = await getAgendamentosDoCliente();
       setAgendamentos(data);
+      // Link "Preciso remarcar" do e-mail: /cliente/agendamentos?remarcar=<id>
+      const alvo = new URLSearchParams(window.location.search).get("remarcar");
+      if (alvo) {
+        const ag = data.find((a) => a.id === alvo);
+        if (ag && podeCancelar(ag)) setRemarcando(ag);
+        else if (ag) toast.error("Este agendamento não pode mais ser remarcado pelo app. Fale com o studio pelo WhatsApp.");
+        window.history.replaceState(null, "", window.location.pathname);
+      }
     } catch {
       toast.error("Erro ao carregar seus agendamentos");
     } finally {
@@ -82,6 +96,16 @@ export default function ClienteAgendamentosPage() {
     }
   };
 
+  const handleSairEspera = async (id: string) => {
+    try {
+      await sairDaListaEspera(id);
+      setListaEspera((prev) => prev.filter((e) => e.id !== id));
+      toast.success("Você saiu da lista de espera.");
+    } catch {
+      toast.error("Erro ao sair da lista de espera");
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -106,9 +130,38 @@ export default function ClienteAgendamentosPage() {
           <Clock className="w-4 h-4 text-[#C9A84C] shrink-0 mt-0.5" />
           <p className="text-muted-foreground">
             <span className="text-foreground font-medium">Política de cancelamento:</span>{" "}
-            Você pode cancelar agendamentos com mais de <strong className="text-foreground">2 horas</strong> de antecedência diretamente pelo app.
+            Você pode remarcar ou cancelar agendamentos com mais de <strong className="text-foreground">2 horas</strong> de antecedência diretamente pelo app.
             Para cancelamentos de última hora, entre em contato com o profissional pelo WhatsApp.
           </p>
+        </div>
+      )}
+
+      {/* Lista de espera */}
+      {listaEspera.length > 0 && (
+        <div className="rounded-xl border border-border bg-surface p-4 space-y-2">
+          <p className="text-sm font-medium text-foreground flex items-center gap-2">
+            <Hourglass className="w-4 h-4 text-[#C9A84C]" />
+            Minha lista de espera
+          </p>
+          <p className="text-xs text-muted-foreground">Quando abrir um horário, aparece aqui o aviso &quot;abriu vaga&quot; e o studio também pode te chamar no WhatsApp.</p>
+          <div className="divide-y divide-border">
+            {listaEspera.map((e) => (
+              <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                <div>
+                  <span className="font-medium text-foreground">{e.studio_nome}</span>
+                  <span className="text-muted-foreground"> · {e.servico_nome} · {formatDate(e.data + "T12:00:00-04:00")}</span>
+                  {e.status === "notificado" && (
+                    <Link href={`/p/${e.codigo_profissional}`} className="ml-2 text-[11px] text-emerald-400 underline">
+                      abriu vaga — agendar
+                    </Link>
+                  )}
+                </div>
+                <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-muted-foreground" onClick={() => handleSairEspera(e.id)}>
+                  <X className="w-3 h-3" /> Sair
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -204,6 +257,19 @@ export default function ClienteAgendamentosPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {/* Botão Remarcar */}
+                        {podeCanc && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 gap-1.5 text-xs border-[#C9A84C]/40 text-[#C9A84C] hover:bg-[#C9A84C]/10"
+                            onClick={() => setRemarcando(ag)}
+                          >
+                            <CalendarClock className="w-3.5 h-3.5" />
+                            Remarcar
+                          </Button>
+                        )}
+
                         {/* Botão Cancelar */}
                         {podeCanc && (
                           <AlertDialog>
@@ -292,6 +358,17 @@ export default function ClienteAgendamentosPage() {
           </TableBody>
         </Table>
       </div>
+
+      <ReagendamentoModal
+        open={!!remarcando}
+        onClose={() => {
+          setRemarcando(null);
+          load();
+        }}
+        agendamento={remarcando}
+        profissionalId={remarcando?.user_id ?? ""}
+        modo="cliente"
+      />
     </div>
   );
 }

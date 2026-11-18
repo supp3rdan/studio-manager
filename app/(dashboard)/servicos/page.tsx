@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ServicoForm } from "@/components/servicos/servico-form";
 import { IndisponibilidadeModal } from "@/components/servicos/indisponibilidade-modal";
+import { ExpedienteConfig } from "@/components/servicos/expediente-config";
 import {
   getServicos,
   deleteServico,
@@ -457,6 +458,8 @@ export default function ServicosPage() {
       {/* ── Tab: Disponibilidade ── */}
       {activeTab === "disponibilidade" && (
         <div className="space-y-4">
+          <ExpedienteConfig />
+
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-foreground">Bloqueios de Horário</p>
@@ -485,7 +488,7 @@ export default function ServicosPage() {
             <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl">
               <CalendarOff className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p className="text-sm">Nenhum bloqueio cadastrado.</p>
-              <p className="text-xs mt-1">Seus clientes podem agendar qualquer horário entre 08h e 22h.</p>
+              <p className="text-xs mt-1">Suas clientes podem agendar qualquer horário livre dentro do seu expediente.</p>
             </div>
           ) : (
             <div className="space-y-2">

@@ -113,7 +113,7 @@ export async function getAgendamentosDoCliente(): Promise<Agendamento[]> {
     .select(
       `
       *,
-      servicos ( id, nome, categoria, preco_base )
+      servicos ( id, nome, categoria, preco_base, duracao_minutos )
     `
     )
     .eq("cliente_user_id", user.id)
@@ -139,3 +139,26 @@ export async function getAgendamentosDoCliente(): Promise<Agendamento[]> {
   }));
 }
 
+
+export interface MinhaListaEspera {
+  id: string;
+  data: string;
+  status: "aguardando" | "notificado";
+  criado_em: string;
+  servico_nome: string;
+  studio_nome: string;
+  codigo_profissional: string;
+}
+
+export async function getMinhaListaEspera(): Promise<MinhaListaEspera[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("minha_lista_espera");
+  if (error) throw error;
+  return (data as MinhaListaEspera[]) ?? [];
+}
+
+export async function sairDaListaEspera(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("lista_espera").delete().eq("id", id);
+  if (error) throw error;
+}

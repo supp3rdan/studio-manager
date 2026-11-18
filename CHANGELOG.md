@@ -6,6 +6,34 @@ Todas as mudanças significativas do projeto são documentadas aqui.
 
 ---
 
+## [0.13.0] — Novembro 2026 — Lembretes, expediente, remarcação pela cliente e lista de espera
+
+### Migration 013 — `013_expediente_lembretes_lista_espera.sql`
+
+> ⚠️ **Ordem de implantação:** rode a migration 013 **antes** do merge. Depois copie o `cron_secret` para a variável `CRON_SECRET` na Vercel e faça o merge.
+>
+> **Sem domínio verificado na Resend** (remetente `@resend.dev`), nenhum e-mail é enviado para clientes — a Resend só entrega no e-mail dono da conta. Nesse modo, a confirmação de presença é pedida pelo **WhatsApp** (com link) e a lista de espera avisa **dentro do app**. Os e-mails para a profissional continuam. Se um dia `RESEND_FROM_EMAIL` usar um domínio verificado, os e-mails para clientes voltam a funcionar sem mudar código.
+
+#### Adicionado
+- **Confirmação de presença com link:** cada agendamento tem um link `/a/[token]` em que a cliente confirma com um clique (status `Agendado` → `Confirmado`) ou vai para remarcar. Colunas `token_publico`, `lembrete_enviado_em` (= confirmação pedida), `confirmado_em`; trigger zera ambas quando a data muda.
+- **Tela de agendamentos:** filtro e aviso "Aguardando confirmação" (próximas 48h) e botão de WhatsApp que abre a conversa com mensagem pronta **incluindo o link de confirmação**; marca "confirmação pedida".
+- **Lembrete por e-mail** (cron diário 09:00 de Manaus, `vercel.json`): só é enviado com domínio verificado na Resend. Sem isso, o cron apenas varre a lista de espera.
+- **Expediente por profissional:** dias, horário de início/fim por dia, intervalo entre horários (10–60 min) e intervalo entre atendimentos (limpeza). Tabela `expedientes`, colunas `perfis.agenda_intervalo_min` / `agenda_buffer_min`, RPC `salvar_expediente`. Sem configuração, vale o padrão anterior (07:00–22:30, a cada 30 min).
+- **Agendamento manual com checagem de conflito:** o formulário do profissional consulta `conflitos_agenda` (outros agendamentos, bloqueios e expediente) e oferece **Encaixar mesmo assim**.
+- **Remarcação pela cliente** (mín. 2h de antecedência): botão em `/cliente/agendamentos`, rota `POST /api/agendamentos/[id]/reagendar`, RPC `reagendar_agendamento_cliente`; e-mail para cliente e profissional.
+- **Lista de espera:** quando o dia está lotado a cliente entra na fila (`entrar_lista_espera`); ao liberar horário (cancelamento, falta, exclusão, remarcação) as entradas do dia viram **vaga aberta** — a cliente vê o aviso em "Meus Agendamentos" e a profissional recebe um toast e tem botão de WhatsApp com o link de agendamento. Varredura diária no cron. (E-mail só com domínio verificado.)
+- RPCs de sistema `sm_*` autorizadas pelo `CRON_SECRET` (guardado em `sm_config`), sem precisar da service role key.
+
+#### Corrigido (Resend)
+- Remetente padrão `agendamentos@resend.dev` não existe no modo de teste da Resend; agora `onboarding@resend.dev`. Sem domínio verificado, e-mails para clientes são pulados (`podeEnviarParaClientes()`), em vez de falhar com 403.
+- Cabeçalho `User-Agent` (a Resend recusa requisições sem ele) e `Idempotency-Key` nos envios em lote.
+- E-mails eram disparados sem `await` depois da resposta; na Vercel a função pode ser congelada antes do envio. Agora as rotas aguardam o envio.
+- Botões de WhatsApp nos e-mails não tinham o código do país (55).
+- O modal de reagendamento sempre usava 30 min de duração (o select não trazia `duracao_minutos`).
+- Middleware preserva o destino (`?next=`) ao mandar para o login.
+
+---
+
 ## [0.12.0] — Novembro 2026 — Segurança e integridade da agenda
 
 ### Migration 012 — `012_seguranca_agendamentos.sql`

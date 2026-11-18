@@ -1,6 +1,10 @@
 import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
+import { getManausDateString } from "@/lib/utils";
 import type {
   Agendamento,
+  ConflitoAgenda,
+  ListaEsperaProfissional,
   DashboardMetrics,
   FaturamentoMensal,
   PagamentoPorMetodo,
@@ -16,7 +20,7 @@ export async function getAgendamentos(): Promise<Agendamento[]> {
       `
       *,
       clientes ( id, nome, whatsapp ),
-      servicos ( id, nome, categoria, preco_base )
+      servicos ( id, nome, categoria, preco_base, duracao_minutos )
     `
     )
     .order("data_hora", { ascending: false });
@@ -36,7 +40,7 @@ export async function createAgendamento(
   const { data, error } = await supabase
     .from("agendamentos")
     .insert({ ...payload, user_id: user!.id })
-    .select(`*, clientes(id,nome,whatsapp), servicos(id,nome,categoria,preco_base)`)
+    .select(`*, clientes(id,nome,whatsapp), servicos(id,nome,categoria,preco_base,duracao_minutos)`)
     .single();
 
   if (error) throw error;
@@ -52,7 +56,7 @@ export async function updateAgendamento(
     .from("agendamentos")
     .update(payload)
     .eq("id", id)
-    .select(`*, clientes(id,nome,whatsapp), servicos(id,nome,categoria,preco_base)`)
+    .select(`*, clientes(id,nome,whatsapp), servicos(id,nome,categoria,preco_base,duracao_minutos)`)
     .single();
 
   if (error) throw error;
@@ -158,4 +162,64 @@ export async function getPagamentoPorMetodo(): Promise<PagamentoPorMetodo[]> {
     valor,
     count,
   }));
+}
+
+// ============================================================
+// Agenda: conflitos, horário liberado e lista de espera
+// ============================================================
+
+/** Conflitos do horário na agenda do profissional logado (agendamentos, bloqueios, expediente). */
+export async function getConflitosAgenda(
+  dataHoraIso: string,
+  duracaoMinutos: number,
+  ignorarAgendamentoId?: string | null
+): Promise<ConflitoAgenda[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("conflitos_agenda", {
+    p_data_hora: dataHoraIso,
+    p_duracao_minutos: duracaoMinutos,
+    p_ignorar_agendamento: ignorarAgendamentoId ?? null,
+  });
+  if (error) throw error;
+  return (data as ConflitoAgenda[]) ?? [];
+}
+
+/**
+ * Marca "vaga aberta" na lista de espera do dia liberado e, se houver alguém
+ * esperando, avisa a profissional para chamar no WhatsApp. Não bloqueia a tela.
+ */
+export function avisarHorarioLiberado(dataHoraIso: string | null | undefined): void {
+  if (!dataHoraIso) return;
+  fetch("/api/agenda/horario-liberado", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ data: getManausDateString(dataHoraIso) }),
+    keepalive: true,
+  })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((json) => {
+      const vagas = Number(json?.vagas ?? 0);
+      if (vagas > 0) {
+        toast.info(
+          vagas === 1
+            ? "1 cliente da lista de espera pode ocupar esse horário. Veja em Agendamentos e chame no WhatsApp."
+            : `${vagas} clientes da lista de espera podem ocupar esse horário. Veja em Agendamentos e chame no WhatsApp.`,
+          { duration: 8000 }
+        );
+      }
+    })
+    .catch((err) => console.warn("[lista de espera]", err));
+}
+
+export async function getListaEsperaProfissional(): Promise<ListaEsperaProfissional[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("lista_espera_do_profissional");
+  if (error) throw error;
+  return (data as ListaEsperaProfissional[]) ?? [];
+}
+
+export async function removerDaListaEspera(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("lista_espera").delete().eq("id", id);
+  if (error) throw error;
 }

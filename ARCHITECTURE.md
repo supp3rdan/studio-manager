@@ -167,8 +167,6 @@ erDiagram
         uuid user_id FK
         text nome
         text whatsapp
-        text email
-        text observacoes
         timestamptz criado_em
         timestamptz atualizado_em
     }
@@ -185,8 +183,29 @@ erDiagram
         text status
         text local
         text observacoes
+        uuid token_publico UK
+        timestamptz lembrete_enviado_em
+        timestamptz confirmado_em
         timestamptz criado_em
         timestamptz atualizado_em
+    }
+
+    EXPEDIENTES {
+        uuid user_id PK
+        smallint dia_semana PK
+        boolean ativo
+        time inicio
+        time fim
+    }
+
+    LISTA_ESPERA {
+        uuid id PK
+        uuid profissional_id FK
+        uuid cliente_user_id FK
+        uuid servico_id FK
+        date data
+        text status
+        timestamptz notificado_em
     }
 
     INDISPONIBILIDADES {
@@ -205,6 +224,8 @@ erDiagram
     PERFIS ||--o{ CLIENTES : "gerencia"
     PERFIS ||--o{ AGENDAMENTOS : "recebe"
     PERFIS ||--o{ INDISPONIBILIDADES : "define"
+    PERFIS ||--o{ EXPEDIENTES : "trabalha em"
+    PERFIS ||--o{ LISTA_ESPERA : "tem fila"
     CLIENTES ||--o{ AGENDAMENTOS : "realiza"
     SERVICOS ||--o{ AGENDAMENTOS : "é escolhido em"
 ```
@@ -444,6 +465,27 @@ Retorna horários livres para um profissional em uma data (via RPC `horarios_dis
 
 ---
 
+### `POST /api/agendamentos/[id]/reagendar`
+Remarcação pela cliente logada (mín. 2h). Body: `{ "data_hora": "ISO" }`. Envia e-mail para cliente e profissional e avisa a lista de espera do dia liberado.  
+**Erros:** 400, 401, 404, 409.
+
+---
+
+### `POST /api/agenda/horario-liberado`
+Chamado pelo painel do profissional ao liberar um horário. Body: `{ "data": "YYYY-MM-DD" }`. Avisa a lista de espera daquele dia.
+
+---
+
+### `GET /api/cron/diario`
+Vercel Cron (13:00 UTC). Exige `Authorization: Bearer <CRON_SECRET>`. Varre a lista de espera e, **só com domínio verificado na Resend**, envia lembretes por e-mail (via `/emails/batch`).
+
+---
+
+### Página `/a/[token]`
+Link enviado pelo WhatsApp (botão no painel) ou pelo e-mail de lembrete. Mostra o agendamento e confirma presença com um clique (RPC `confirmar_presenca`). A confirmação exige clique para não ser disparada por filtros de e-mail que visitam links.
+
+---
+
 ### `GET /api/auth/callback`
 Callback do Supabase Auth após confirmação de e-mail ou OAuth.  
 Redireciona para `/email-confirmado` ou `/dashboard`.
@@ -459,7 +501,11 @@ Redireciona para `/email-confirmado` ou `/dashboard`.
 
 > As variáveis com prefixo `NEXT_PUBLIC_` são expostas no browser. Nunca use a `service_role` key como pública. Desde a 0.12.0 a aplicação **não usa** `SUPABASE_SERVICE_ROLE_KEY`; todas as operações públicas passam por RPCs `SECURITY DEFINER`.
 >
-> Opcionais: `RESEND_API_KEY` e `RESEND_FROM_EMAIL` (envio de e-mails).
+> Para e-mails: `RESEND_API_KEY` e, opcionalmente, `RESEND_FROM_EMAIL`. Sem domínio verificado na Resend o remetente é `onboarding@resend.dev`, que só entrega no e-mail dono da conta — nesse modo a aplicação não envia e-mails para clientes (`podeEnviarParaClientes()`).
+>
+> `CRON_SECRET`: valor de `sm_config.cron_secret` (mostrado ao rodar a migration 013). Autoriza o cron e as RPCs de sistema `sm_*`.
+>
+> Opcional: `NEXT_PUBLIC_APP_URL` para os links dos e-mails (padrão: domínio de produção da Vercel).
 
 ---
 
@@ -479,6 +525,7 @@ Redireciona para `/email-confirmado` ou `/dashboard`.
 | 010 | `010_cancelamento_cliente_e_reagendamento.sql` | RPCs `cancelar_agendamento_cliente` (regra de 2h) e `reagendar_agendamento` |
 | 011 | `011_fuso_horario_manaus.sql` | Fuso `America/Manaus` em `get_horarios_disponiveis` |
 | 012 | `012_seguranca_agendamentos.sql` | Conflito de horário validado no banco (com lock), RPCs com `auth.uid()`, remoção de políticas públicas de INSERT/SELECT, RPC `horarios_disponiveis_publico`, índices |
+| 013 | `013_expediente_lembretes_lista_espera.sql` | Tabelas `expedientes`, `lista_espera`, `sm_config`; colunas de lembrete/confirmação em `agendamentos`; RPCs de expediente, confirmação, remarcação pela cliente, conflitos e lista de espera |
 
 ---
 

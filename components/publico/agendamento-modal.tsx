@@ -158,6 +158,37 @@ export function AgendamentoModal({
       .finally(() => setLoadingHorarios(false));
   }, [watchedData, profissional?.id, servico?.duracao_minutos, setValue]);
 
+  const [entrandoEspera, setEntrandoEspera] = useState(false);
+  const [entrouEspera, setEntrouEspera] = useState<string | null>(null);
+
+  const entrarListaEspera = async () => {
+    if (!servico || !watchedData) return;
+    if (!clienteUserId) {
+      toast.error("Faça login como cliente para entrar na lista de espera.");
+      return;
+    }
+    setEntrandoEspera(true);
+    try {
+      const { data, error } = await supabase.rpc("entrar_lista_espera", {
+        p_codigo_profissional: profissional.codigo_profissional,
+        p_servico_id: servico.id,
+        p_data: watchedData,
+      });
+      if (error) throw error;
+      setEntrouEspera(watchedData);
+      const posicao = (data as { posicao?: number } | null)?.posicao;
+      toast.success(
+        posicao && posicao > 1
+          ? `Você entrou na lista de espera (${posicao}º lugar).`
+          : "Você entrou na lista de espera!"
+      );
+    } catch (err) {
+      toast.error((err as Error)?.message || "Não foi possível entrar na lista de espera.");
+    } finally {
+      setEntrandoEspera(false);
+    }
+  };
+
   const precoFinal = servico?.promocao_ativa && servico.preco_promocional != null
     ? servico.preco_promocional
     : servico?.preco_base ?? 0;
@@ -401,8 +432,28 @@ export function AgendamentoModal({
                       <span className="text-xs">Verificando disponibilidade...</span>
                     </div>
                   ) : horarios.length === 0 ? (
-                    <div className="py-4 text-center text-xs text-muted-foreground border border-dashed border-border rounded-lg">
-                      Nenhum horário disponível nesta data. Escolha outra data.
+                    <div className="py-4 px-3 text-center text-xs text-muted-foreground border border-dashed border-border rounded-lg space-y-2">
+                      <p>Nenhum horário disponível nesta data.</p>
+                      {entrouEspera === watchedData ? (
+                        <p className="text-emerald-400 font-medium">
+                          ✓ Você está na lista de espera. Se abrir um horário, aparece em &quot;Meus Agendamentos&quot; e o studio pode te chamar no WhatsApp.
+                        </p>
+                      ) : (
+                        <>
+                          <p>Escolha outra data ou entre na lista de espera deste dia.</p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={entrandoEspera}
+                            onClick={entrarListaEspera}
+                            className="gap-1.5 border-[#C9A84C]/40 text-[#C9A84C] hover:bg-[#C9A84C]/10"
+                          >
+                            {entrandoEspera ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "⏳"}
+                            Avise-me se abrir horário
+                          </Button>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <Controller

@@ -40,8 +40,47 @@ export interface Perfil {
   nome_studio: string | null;
   codigo_profissional: string | null;
   email: string | null;
+  agenda_intervalo_min?: number;
+  agenda_buffer_min?: number;
   criado_em: string;
   atualizado_em: string;
+}
+
+export interface Expediente {
+  user_id: string;
+  dia_semana: number; // 0=Dom ... 6=Sáb
+  ativo: boolean;
+  inicio: string; // "HH:mm:ss"
+  fim: string; // término máximo do atendimento
+}
+
+export type StatusListaEspera = "aguardando" | "notificado" | "atendido" | "expirado";
+
+export interface ListaEsperaCliente {
+  id: string;
+  profissional_id: string;
+  servico_id: string;
+  data: string;
+  status: StatusListaEspera;
+  notificado_em: string | null;
+  criado_em: string;
+}
+
+export interface ListaEsperaProfissional {
+  id: string;
+  data: string;
+  status: StatusListaEspera;
+  criado_em: string;
+  notificado_em: string | null;
+  servico_nome: string;
+  cliente_nome: string;
+  cliente_whatsapp: string | null;
+}
+
+export interface ConflitoAgenda {
+  tipo: "agendamento" | "bloqueio" | "expediente";
+  descricao: string;
+  inicio: string;
 }
 
 export interface Cliente {
@@ -94,11 +133,14 @@ export interface Agendamento {
   status: StatusAgendamento;
   local: LocalAgendamento;
   observacoes: string | null;
+  token_publico?: string;
+  lembrete_enviado_em?: string | null;
+  confirmado_em?: string | null;
   criado_em: string;
   atualizado_em: string;
   // Joined fields
   clientes?: Pick<Cliente, "id" | "nome" | "whatsapp">;
-  servicos?: Pick<Servico, "id" | "nome" | "categoria" | "preco_base">;
+  servicos?: Pick<Servico, "id" | "nome" | "categoria" | "preco_base"> & { duracao_minutos?: number };
   profissional?: Pick<Perfil, "id" | "nome" | "nome_studio" | "whatsapp" | "codigo_profissional">;
 }
 
