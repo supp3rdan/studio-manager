@@ -128,7 +128,7 @@ export async function getAgendamentosDoCliente(): Promise<Agendamento[]> {
   const userIds = Array.from(new Set(agendamentos.map((a) => a.user_id)));
   const { data: perfisProfissionais } = await supabase
     .from("perfis")
-    .select("id, nome, nome_studio, whatsapp, codigo_profissional")
+    .select("id, nome, nome_studio, whatsapp, email, codigo_profissional")
     .in("id", userIds);
 
   const perfisMap = new Map((perfisProfissionais ?? []).map((p) => [p.id, p]));
