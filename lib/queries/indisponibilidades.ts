@@ -46,35 +46,18 @@ export async function getHorariosDisponiveis(
   data: string, // "yyyy-MM-dd"
   duracaoMinutos: number = 30
 ): Promise<string[]> {
-  try {
-    const res = await fetch(
-      `/api/horarios-disponiveis?profissional_id=${encodeURIComponent(
-        profissionalId
-      )}&data=${encodeURIComponent(data)}&duracao=${duracaoMinutos}`
-    );
+  const res = await fetch(
+    `/api/horarios-disponiveis?profissional_id=${encodeURIComponent(
+      profissionalId
+    )}&data=${encodeURIComponent(data)}&duracao=${duracaoMinutos}`,
+    { cache: "no-store" }
+  );
 
-    if (res.ok) {
-      const json = await res.json();
-      if (Array.isArray(json.slots)) {
-        return json.slots;
-      }
-    }
-  } catch (err) {
-    console.warn("Erro ao buscar horários via API, usando fallback:", err);
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json || !Array.isArray(json.slots)) {
+    // Nunca exibir a grade inteira como "livre" em caso de erro:
+    // isso mostraria horários ocupados ou bloqueados.
+    throw new Error(json?.error || "Não foi possível carregar os horários.");
   }
-
-  // Fallback seguro: gera slots das 07:00 às 22:00 (a cada 30 min)
-  return generateSlots();
-}
-
-/** Fallback: gera slots de 30 em 30 minutos das 07h às 22h */
-function generateSlots(): string[] {
-  const slots: string[] = [];
-  for (let h = 7; h <= 22; h++) {
-    slots.push(`${String(h).padStart(2, "0")}:00`);
-    if (h < 22) {
-      slots.push(`${String(h).padStart(2, "0")}:30`);
-    }
-  }
-  return slots;
+  return json.slots;
 }

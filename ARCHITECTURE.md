@@ -255,8 +255,8 @@ sequenceDiagram
     RPC-->>UI: Lista de serviços ativos
 
     C->>UI: Escolhe serviço e data
-    UI->>API: GET /api/horarios-disponiveis?profissional=&data=&duracao=
-    API->>RPC: get_horarios_disponiveis(prof_id, data, duracao)
+    UI->>API: GET /api/horarios-disponiveis?profissional_id=&data=&duracao=
+    API->>RPC: horarios_disponiveis_publico(prof_id, data, duracao)
     RPC->>DB: Verifica agendamentos + indisponibilidades
     DB-->>RPC: Slots livres
     RPC-->>UI: Lista de horários (07h–22h, sem ocupados)
@@ -366,7 +366,7 @@ flowchart TD
 
 ### Row Level Security (RLS)
 
-Todas as tabelas têm RLS habilitado. A regra base é: **usuário só acessa dados onde `auth.uid() = user_id`**.
+Todas as tabelas têm RLS habilitado. A regra base é: **usuário só acessa dados onde `auth.uid() = user_id`**. Desde a migration 012 não há políticas públicas de INSERT: agendamentos e clientes criados pelo portal passam exclusivamente pela RPC `criar_agendamento_publico`.
 
 | Tabela | Política | Regra |
 |---|---|---|
@@ -375,12 +375,9 @@ Todas as tabelas têm RLS habilitado. A regra base é: **usuário só acessa dad
 | `perfis` | `perfis_update_own` | `auth.uid() = id` |
 | `servicos` | `servicos_select/insert/update/delete` | `auth.uid() = user_id` |
 | `clientes` | `clientes_select/insert/update/delete` | `auth.uid() = user_id` |
-| `clientes` | `clientes_insert_publico` | `true` (via RPC SECURITY DEFINER) |
 | `agendamentos` | `agendamentos_select` | `auth.uid() = user_id` |
 | `agendamentos` | `agendamentos_select_cliente` | `auth.uid() = cliente_user_id` |
-| `agendamentos` | `agendamentos_insert_publico` | `true` (via RPC SECURITY DEFINER) |
 | `indisponibilidades` | `indisponibilidades_select/insert/update/delete` | `auth.uid() = user_id` |
-| `indisponibilidades` | `indisponibilidades_select_publico` | `true` (leitura pública p/ calcular slots) |
 
 ### RPCs SECURITY DEFINER
 
@@ -389,9 +386,13 @@ Funções que rodam com privilégios elevados para operações públicas (sem va
 | Função | Propósito | Acesso |
 |---|---|---|
 | `get_servicos_do_profissional(user_id)` | Retorna serviços ativos de UM profissional específico | `anon`, `authenticated` |
-| `get_horarios_disponiveis(prof_id, data, duracao)` | Calcula slots livres cruzando agendamentos + indisponibilidades | `anon`, `authenticated`, `service_role` |
+| `horarios_disponiveis_publico(prof_id, data, duracao)` | **Fonte única** do cálculo de slots livres (grade 07h–22h, término até 22h30, só horários futuros) | `anon`, `authenticated` |
+| `get_horarios_disponiveis(prof_id, data, duracao)` | Legado — delega para `horarios_disponiveis_publico` | `anon`, `authenticated` |
 | `get_agendamentos_ocupados(prof_id, data)` | Retorna horários ocupados (para ocultar no calendário do cliente) | `anon`, `authenticated` |
-| `criar_agendamento_publico(...)` | Cria agendamento + cliente (se necessário) com segurança | `anon`, `authenticated`, `service_role` |
+| `criar_agendamento_publico(...)` | Cria agendamento + cliente; cliente = `auth.uid()`; valida conflito/bloqueios/grade com lock por profissional | `authenticated` |
+| `cancelar_agendamento_cliente(ag_id, _)` | Cliente (`auth.uid()`) cancela o próprio agendamento com 2h+ de antecedência | `authenticated` |
+| `reagendar_agendamento(ag_id, _, nova_data)` | Profissional (`auth.uid()`) reagenda sem sobrepor outro agendamento | `authenticated` |
+| `sm_horario_conflita(...)` | Helper interno de conflito de horário | interno |
 | `generate_unique_codigo_profissional()` | Gera código único de 4 dígitos | interno (trigger) |
 | `handle_new_user()` | Cria perfil automaticamente no cadastro | interno (trigger) |
 
@@ -400,42 +401,45 @@ Funções que rodam com privilégios elevados para operações públicas (sem va
 ## 10. API Routes
 
 ### `POST /api/agendamentos/publico`
-Cria um novo agendamento via portal público.
+Cria um novo agendamento via portal público. **Requer sessão** (cookie do Supabase Auth): a cliente é sempre o usuário logado.
 
-**Body (JSON):**
+**Body (JSON, validado com Zod):**
 ```json
 {
-  "codigoProfissional": "1234",
-  "servicoId": "uuid",
-  "dataHora": "2024-01-15T10:00:00-04:00",
+  "codigo_profissional": "1234",
+  "servico_id": "uuid",
+  "data_hora": "2026-01-15T10:00:00-04:00",
   "local": "Studio",
-  "formaPagamento": "Pix",
-  "clienteNome": "Maria Silva",
-  "clienteWhatsapp": "92999999999",
-  "clienteEmail": "maria@email.com",
-  "clienteUserId": "uuid-do-usuario-logado",
+  "forma_pagamento": "Pix",
+  "cliente_nome": "Maria Silva",
+  "cliente_whatsapp": "92999999999",
+  "cliente_email": "maria@email.com",
   "observacoes": "Texto opcional"
 }
 ```
 
-**Resposta (200):** JSON com dados do agendamento criado.  
-**Erros:** 400 (dados inválidos), 404 (profissional não encontrado), 409 (horário ocupado).
+**Resposta (200):** `{ success, agendamento, profissional }`.  
+**Erros:** 400 (dados inválidos ou fora do expediente), 401 (não logado), 404 (profissional/serviço não encontrado), 409 (horário ocupado ou bloqueado).
+
+---
+
+### `POST /api/agendamentos/[id]/cancelar`
+Cancela um agendamento da cliente logada (mínimo de 2h de antecedência).  
+**Erros:** 400, 401, 404.
 
 ---
 
 ### `GET /api/horarios-disponiveis`
-Retorna horários livres para um profissional em uma data.
+Retorna horários livres para um profissional em uma data (via RPC `horarios_disponiveis_publico`).
 
 **Query params:**
-- `profissional` — `user_id` do profissional
+- `profissional_id` — `user_id` do profissional (UUID)
 - `data` — data no formato `YYYY-MM-DD`
-- `duracao` — duração em minutos (padrão: 30)
+- `duracao` — duração em minutos (5–480, padrão: 30)
 
 **Resposta (200):**
 ```json
-{
-  "horarios": ["2024-01-15T07:00:00-04:00", "2024-01-15T07:30:00-04:00", "..."]
-}
+{ "slots": ["07:00", "07:30", "..."] }
 ```
 
 ---
@@ -453,7 +457,9 @@ Redireciona para `/email-confirmado` ou `/dashboard`.
 | `NEXT_PUBLIC_SUPABASE_URL` | ✅ | URL do projeto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Chave anônima pública do Supabase |
 
-> As variáveis com prefixo `NEXT_PUBLIC_` são expostas no browser. Nunca use a `service_role` key como pública.
+> As variáveis com prefixo `NEXT_PUBLIC_` são expostas no browser. Nunca use a `service_role` key como pública. Desde a 0.12.0 a aplicação **não usa** `SUPABASE_SERVICE_ROLE_KEY`; todas as operações públicas passam por RPCs `SECURITY DEFINER`.
+>
+> Opcionais: `RESEND_API_KEY` e `RESEND_FROM_EMAIL` (envio de e-mails).
 
 ---
 
@@ -470,6 +476,9 @@ Redireciona para `/email-confirmado` ou `/dashboard`.
 | 007 | `007_fix_servicos_rls_e_duracao.sql` | Remove política pública de serviços; seta duração 60min p/ Cílios e Depilação |
 | 008 | `008_fix_servicos_publico_rls.sql` | Cria RPC `get_servicos_do_profissional` (SECURITY DEFINER) para clientes lerem serviços |
 | 009 | `009_agendamentos_ocupados_e_login_obrigatorio.sql` | RPC `get_agendamentos_ocupados`; oculta slots ocupados e bloqueados para clientes |
+| 010 | `010_cancelamento_cliente_e_reagendamento.sql` | RPCs `cancelar_agendamento_cliente` (regra de 2h) e `reagendar_agendamento` |
+| 011 | `011_fuso_horario_manaus.sql` | Fuso `America/Manaus` em `get_horarios_disponiveis` |
+| 012 | `012_seguranca_agendamentos.sql` | Conflito de horário validado no banco (com lock), RPCs com `auth.uid()`, remoção de políticas públicas de INSERT/SELECT, RPC `horarios_disponiveis_publico`, índices |
 
 ---
 

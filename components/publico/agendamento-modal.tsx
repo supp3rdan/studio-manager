@@ -149,22 +149,12 @@ export function AgendamentoModal({
       watchedData,
       servico?.duracao_minutos ?? 30
     )
-      .then((slots) => {
-        // Filter out past slots for today
-        const now = new Date();
-        const isToday = watchedData === format(now, "yyyy-MM-dd");
-        const filtered = slots.filter((s) => {
-          if (!isToday) return true;
-          const horaStr = s.length === 5 ? s : format(new Date(s), "HH:mm");
-          const [h, m] = horaStr.split(":").map(Number);
-          const slotDateTime = new Date(
-            `${watchedData}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`
-          );
-          return slotDateTime > now;
-        });
-        setHorarios(filtered);
+      // O servidor já remove horários passados (no fuso de Manaus)
+      .then((slots) => setHorarios(slots))
+      .catch((err: Error) => {
+        setHorarios([]);
+        toast.error(err.message || "Erro ao carregar horários disponíveis");
       })
-      .catch(() => setHorarios([]))
       .finally(() => setLoadingHorarios(false));
   }, [watchedData, profissional?.id, servico?.duracao_minutos, setValue]);
 
