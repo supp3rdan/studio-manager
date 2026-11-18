@@ -6,6 +6,31 @@ Todas as mudanças significativas do projeto são documentadas aqui.
 
 ---
 
+## [0.11.0] — Novembro 2026 — Fuso horário padrão de Manaus / AM (America/Manaus, UTC-4)
+
+### Migration 011 — `011_fuso_horario_manaus.sql`
+
+#### Alterado
+- **Fuso horário do sistema:** Todo o sistema agora opera estritamente no fuso horário de **Manaus/AM (`America/Manaus`, UTC-4, sem horário de verão)**.
+- **`lib/utils.ts`:**
+  - `TIMEZONE_DEFAULT` atualizado para `"America/Manaus"`.
+  - `TIMEZONE_OFFSET` definido como `"-04:00"`.
+  - `formatDate`, `formatTime` e `formatDateTime` agora convertem datas e horas para `America/Manaus` usando `Intl.DateTimeFormat` nativo (funciona independente do fuso do dispositivo ou do servidor Vercel).
+  - Adicionadas funções auxiliares `getManausDateString`, `getManausHour` e `toManausISO` (gera timestamps UTC correspondentes ao horário selecionado em Manaus com offset `-04:00`).
+- **`app/api/horarios-disponiveis/route.ts`:**
+  - Fuso horário configurado para `America/Manaus`.
+  - Ranges de busca de agendamentos e indisponibilidades ajustados para offset `-04:00`.
+- **Formulários e Modais (`agendamento-form.tsx`, `agendamento-modal.tsx`, `reagendamento-modal.tsx`, `indisponibilidade-modal.tsx`):**
+  - Criação e reagendamento agora geram timestamps explicitamente no fuso de Manaus (`toManausISO`).
+- **Calendário Semanal (`calendario-semanal.tsx`):**
+  - Mapeamento de colunas por dia e hora alinhados ao fuso de Manaus.
+- **Relatório PDF e E-mails (`lib/pdf-report.ts`, `lib/email.ts`):**
+  - Confirmações de agendamento, cancelamento e relatórios em PDF formatados no horário oficial de Manaus.
+- **Migration 011 (`011_fuso_horario_manaus.sql`):**
+  - Atualização da RPC `get_horarios_disponiveis` no Supabase com `AT TIME ZONE 'America/Manaus'`.
+
+---
+
 ## [0.10.0] — Novembro 2026 — Cancelamento pelo cliente, reagendamento, calendário semanal e e-mail de cancelamento
 
 ### Migration 010 — `010_cancelamento_cliente_e_reagendamento.sql`

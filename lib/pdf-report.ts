@@ -1,6 +1,5 @@
 import type { Agendamento } from "@/types/database";
-import { format, parseISO } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatDate, formatDateTime, getManausDateString } from "@/lib/utils";
 
 /** Format currency BRL */
 function brl(value: number | null | undefined): string {
@@ -11,24 +10,16 @@ function brl(value: number | null | undefined): string {
   }).format(value);
 }
 
-/** Format datetime */
+/** Format datetime no fuso de Manaus */
 function dt(iso: string | null | undefined): string {
   if (!iso) return "—";
-  try {
-    return format(parseISO(iso), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
-  } catch {
-    return iso;
-  }
+  return formatDateTime(iso);
 }
 
-/** Format date only */
+/** Format date only no fuso de Manaus */
 function dateOnly(iso: string | null | undefined): string {
   if (!iso) return "—";
-  try {
-    return format(parseISO(iso), "dd/MM/yyyy", { locale: ptBR });
-  } catch {
-    return iso;
-  }
+  return formatDate(iso);
 }
 
 export async function generateAgendamentosPDF(
@@ -109,8 +100,8 @@ export async function generateAgendamentosPDF(
   doc.setTextColor(...MUTED);
   doc.text("Relatório de Agendamentos", 32, 20);
 
-  // Date generated
-  const now = format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+  // Date generated no fuso de Manaus
+  const now = formatDateTime(new Date());
   doc.setFontSize(8);
   doc.setTextColor(...MUTED);
   doc.text(`Gerado em: ${now}`, 297 - 14, 13, { align: "right" });
@@ -274,6 +265,6 @@ export async function generateAgendamentosPDF(
   }
 
   // ── Download ──────────────────────────────────────────────────────────────
-  const filename = `relatorio-agendamentos-${format(new Date(), "yyyy-MM-dd")}.pdf`;
+  const filename = `relatorio-agendamentos-${getManausDateString(new Date())}.pdf`;
   doc.save(filename);
 }
