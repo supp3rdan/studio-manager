@@ -54,14 +54,35 @@ function aguardandoConfirmacao(ag: Agendamento): boolean {
   return diff > 0 && diff <= 48 * 60 * 60 * 1000;
 }
 
-function linkWhatsAppConfirmacao(ag: Agendamento): string | null {
+/**
+ * Abre o WhatsApp da cliente com mensagem pronta e o link de confirmação
+ * (/a/[token]): ela confirma com um clique e o status vira "Confirmado".
+ */
+function pedirConfirmacaoWhatsApp(ag: Agendamento, onEnviado: () => void) {
   const base = getWhatsAppUrl(ag.clientes?.whatsapp);
-  if (!base) return null;
+  if (!base) return;
   const nome = (ag.clientes?.nome ?? "").split(" ")[0];
+  const link = ag.token_publico ? `${window.location.origin}/a/${ag.token_publico}` : null;
   const texto =
     `Oi${nome ? `, ${nome}` : ""}! Tudo bem? 💛 Passando para confirmar seu horário de ` +
-    `${ag.servicos?.nome ?? "atendimento"} em ${formatDateTime(ag.data_hora)}. Posso confirmar?`;
-  return `${base}?text=${encodeURIComponent(texto)}`;
+    `${ag.servicos?.nome ?? "atendimento"} em ${formatDateTime(ag.data_hora)}.` +
+    (link ? `\n\nConfirme por aqui (é só um clique): ${link}` : " Posso confirmar?");
+  window.open(`${base}?text=${encodeURIComponent(texto)}`, "_blank", "noopener,noreferrer");
+  // Registra que a confirmação foi pedida (reaproveita lembrete_enviado_em)
+  updateAgendamento(ag.id, { lembrete_enviado_em: new Date().toISOString() })
+    .then(onEnviado)
+    .catch(() => {});
+}
+
+function pedirWhatsAppListaEspera(e: ListaEsperaProfissional, codigo: string | null) {
+  const base = getWhatsAppUrl(e.cliente_whatsapp);
+  if (!base) return;
+  const nome = e.cliente_nome.split(" ")[0];
+  const link = codigo ? `${window.location.origin}/p/${codigo}` : null;
+  const texto =
+    `Oi, ${nome}! 💛 Abriu horário para ${e.servico_nome} no dia ${formatDate(e.data + "T12:00:00-04:00")}.` +
+    (link ? ` Garanta o seu por aqui: ${link}` : " Quer que eu reserve para você?");
+  window.open(`${base}?text=${encodeURIComponent(texto)}`, "_blank", "noopener,noreferrer");
 }
 
 type ViewMode = "lista" | "calendario";
@@ -158,6 +179,7 @@ export default function AgendamentosPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("lista");
   const [profissionalId, setProfissionalId] = useState<string | null>(null);
   const [listaEspera, setListaEspera] = useState<ListaEsperaProfissional[]>([]);
+  const [codigoProfissional, setCodigoProfissional] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     getListaEsperaProfissional().then(setListaEspera).catch(() => setListaEspera([]));
@@ -176,7 +198,14 @@ export default function AgendamentosPage() {
     // Pega o user_id do profissional para o reagendamento
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setProfissionalId(user.id);
+      if (!user) return;
+      setProfissionalId(user.id);
+      supabase
+        .from("perfis")
+        .select("codigo_profissional")
+        .eq("id", user.id)
+        .maybeSingle()
+        .then(({ data }) => setCodigoProfissional(data?.codigo_profissional ?? null));
     });
   }, [load]);
 
@@ -283,7 +312,7 @@ export default function AgendamentosPage() {
             Lista de espera <span className="text-muted-foreground font-normal">({listaEspera.length})</span>
           </p>
           <p className="text-xs text-muted-foreground">
-            Quando um horário desses dias é liberado, avisamos por e-mail automaticamente.
+            Quando um horário desses dias é liberado, a cliente aparece como <strong className="text-emerald-400">vaga aberta</strong>: chame no WhatsApp com o link de agendamento.
           </p>
           <div className="divide-y divide-border">
             {listaEspera.map((e) => {
@@ -295,17 +324,21 @@ export default function AgendamentosPage() {
                     <span className="text-muted-foreground"> · {e.servico_nome} · {formatDate(e.data + "T12:00:00-04:00")}</span>
                     {e.status === "notificado" && (
                       <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full border border-emerald-400/30 text-emerald-400">
-                        avisada
+                        vaga aberta
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-1">
                     {whats && (
-                      <a href={whats} target="_blank" rel="noopener noreferrer">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-400" title="WhatsApp">
-                          <Phone className="w-3.5 h-3.5" />
-                        </Button>
-                      </a>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-emerald-400"
+                        title="Chamar no WhatsApp com link de agendamento"
+                        onClick={() => pedirWhatsAppListaEspera(e, codigoProfissional)}
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                      </Button>
                     )}
                     <Button
                       variant="ghost"
@@ -446,9 +479,9 @@ export default function AgendamentosPage() {
                         {ag.status === "Agendado" && ag.lembrete_enviado_em && (
                           <span
                             className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
-                            title={`Lembrete enviado em ${formatDateTime(ag.lembrete_enviado_em)}`}
+                            title={`Confirmação pedida em ${formatDateTime(ag.lembrete_enviado_em)}`}
                           >
-                            <BellRing className="w-3 h-3" /> lembrete enviado
+                            <BellRing className="w-3 h-3" /> confirmação pedida
                           </span>
                         )}
                       </div>
@@ -456,17 +489,16 @@ export default function AgendamentosPage() {
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         {/* WhatsApp para quem não confirmou */}
-                        {aguardandoConfirmacao(ag) && linkWhatsAppConfirmacao(ag) && (
-                          <a href={linkWhatsAppConfirmacao(ag)!} target="_blank" rel="noopener noreferrer">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10"
-                              title="Pedir confirmação no WhatsApp"
-                            >
-                              <Phone className="w-3.5 h-3.5" />
-                            </Button>
-                          </a>
+                        {aguardandoConfirmacao(ag) && getWhatsAppUrl(ag.clientes?.whatsapp) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10"
+                            title="Pedir confirmação no WhatsApp (com link de confirmar)"
+                            onClick={() => pedirConfirmacaoWhatsApp(ag, load)}
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                          </Button>
                         )}
                         {/* Reagendar */}
                         {!["Concluído", "Cancelado", "Não Compareceu"].includes(ag.status) && (

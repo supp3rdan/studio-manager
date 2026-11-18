@@ -436,7 +436,7 @@ export function AgendamentoModal({
                       <p>Nenhum horário disponível nesta data.</p>
                       {entrouEspera === watchedData ? (
                         <p className="text-emerald-400 font-medium">
-                          ✓ Você está na lista de espera. Avisaremos por e-mail se abrir um horário.
+                          ✓ Você está na lista de espera. Se abrir um horário, aparece em &quot;Meus Agendamentos&quot; e o studio pode te chamar no WhatsApp.
                         </p>
                       ) : (
                         <>

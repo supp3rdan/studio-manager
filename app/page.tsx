@@ -146,7 +146,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             <ShieldCheck className="w-5 h-5 text-[#C9A84C]" />
             <h3 className="font-semibold text-sm text-foreground">Confirmação Instantânea</h3>
             <p className="text-xs text-muted-foreground">
-              Receba confirmação por e-mail e fale direto pelo WhatsApp.
+              Seu horário confirmado na hora, com atendimento direto pelo WhatsApp.
             </p>
           </div>
         </div>

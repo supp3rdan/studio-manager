@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 import { getManausDateString } from "@/lib/utils";
 import type {
   Agendamento,
@@ -184,8 +185,8 @@ export async function getConflitosAgenda(
 }
 
 /**
- * Avisa a lista de espera de que um dia ganhou vaga. Não bloqueia a interface:
- * falhas apenas são registradas no console.
+ * Marca "vaga aberta" na lista de espera do dia liberado e, se houver alguém
+ * esperando, avisa a profissional para chamar no WhatsApp. Não bloqueia a tela.
  */
 export function avisarHorarioLiberado(dataHoraIso: string | null | undefined): void {
   if (!dataHoraIso) return;
@@ -194,7 +195,20 @@ export function avisarHorarioLiberado(dataHoraIso: string | null | undefined): v
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ data: getManausDateString(dataHoraIso) }),
     keepalive: true,
-  }).catch((err) => console.warn("[lista de espera]", err));
+  })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((json) => {
+      const vagas = Number(json?.vagas ?? 0);
+      if (vagas > 0) {
+        toast.info(
+          vagas === 1
+            ? "1 cliente da lista de espera pode ocupar esse horário. Veja em Agendamentos e chame no WhatsApp."
+            : `${vagas} clientes da lista de espera podem ocupar esse horário. Veja em Agendamentos e chame no WhatsApp.`,
+          { duration: 8000 }
+        );
+      }
+    })
+    .catch((err) => console.warn("[lista de espera]", err));
 }
 
 export async function getListaEsperaProfissional(): Promise<ListaEsperaProfissional[]> {

@@ -477,12 +477,12 @@ Chamado pelo painel do profissional ao liberar um horário. Body: `{ "data": "YY
 ---
 
 ### `GET /api/cron/diario`
-Vercel Cron (13:00 UTC). Exige `Authorization: Bearer <CRON_SECRET>`. Envia lembretes (via `/emails/batch` da Resend) e varre a lista de espera.
+Vercel Cron (13:00 UTC). Exige `Authorization: Bearer <CRON_SECRET>`. Varre a lista de espera e, **só com domínio verificado na Resend**, envia lembretes por e-mail (via `/emails/batch`).
 
 ---
 
 ### Página `/a/[token]`
-Link do e-mail de lembrete. Mostra o agendamento e confirma presença com um clique (RPC `confirmar_presenca`). A confirmação exige clique para não ser disparada por filtros de e-mail que visitam links.
+Link enviado pelo WhatsApp (botão no painel) ou pelo e-mail de lembrete. Mostra o agendamento e confirma presença com um clique (RPC `confirmar_presenca`). A confirmação exige clique para não ser disparada por filtros de e-mail que visitam links.
 
 ---
 
@@ -501,7 +501,7 @@ Redireciona para `/email-confirmado` ou `/dashboard`.
 
 > As variáveis com prefixo `NEXT_PUBLIC_` são expostas no browser. Nunca use a `service_role` key como pública. Desde a 0.12.0 a aplicação **não usa** `SUPABASE_SERVICE_ROLE_KEY`; todas as operações públicas passam por RPCs `SECURITY DEFINER`.
 >
-> Para e-mails: `RESEND_API_KEY` e `RESEND_FROM_EMAIL` (remetente de um **domínio verificado** na Resend — com `resend.dev` só chega no e-mail dono da conta).
+> Para e-mails: `RESEND_API_KEY` e, opcionalmente, `RESEND_FROM_EMAIL`. Sem domínio verificado na Resend o remetente é `onboarding@resend.dev`, que só entrega no e-mail dono da conta — nesse modo a aplicação não envia e-mails para clientes (`podeEnviarParaClientes()`).
 >
 > `CRON_SECRET`: valor de `sm_config.cron_secret` (mostrado ao rodar a migration 013). Autoriza o cron e as RPCs de sistema `sm_*`.
 >

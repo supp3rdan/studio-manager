@@ -155,7 +155,7 @@ POST /api/agendamentos/publico      → criar agendamento (exige sessão; body v
 POST /api/agendamentos/[id]/cancelar → cancelar agendamento (cliente autenticado, 2h+ antecedência) + avisa lista de espera
 POST /api/agendamentos/[id]/reagendar → cliente remarca (2h+) + e-mails + avisa lista de espera
 POST /api/agenda/horario-liberado    → painel do profissional avisa lista de espera ({ data })
-GET  /api/cron/diario               → Vercel Cron 13:00 UTC; Bearer CRON_SECRET; lembretes + varredura da lista de espera
+GET  /api/cron/diario               → Vercel Cron 13:00 UTC; Bearer CRON_SECRET; varredura da lista de espera (+ lembretes por e-mail só se podeEnviarParaClientes())
 GET  /api/horarios-disponiveis      → { slots: ["HH:mm"] } (?profissional_id=&data=YYYY-MM-DD&duracao=)
 GET  /api/auth/callback             → callback Supabase Auth
 ```
@@ -238,8 +238,8 @@ types/database.ts                           → todos os tipos TS do projeto
 10. **Valor do agendamento público:** usa `preco_promocional` se `promocao_ativa = true`, senão `preco_base`
 11. **Conflito de horário:** validado NO BANCO (`sm_horario_conflita` + `pg_advisory_xact_lock` por profissional). O front só exibe; nunca é a garantia
 12. **Cancelamento e remarcação pela cliente:** só status Agendado/Confirmado e com >2h de antecedência
-13. **Lembrete:** cron diário envia para `Agendado` de agora+2h até o fim de amanhã (criados há >1h, sem lembrete). Confirmar exige clique na página (filtros de e-mail visitam links)
-14. **Liberou horário → avisar lista de espera:** cancelamento, falta, exclusão, mudança de data/hora ou remarcação devem chamar `notificarListaEspera` (servidor) ou `avisarHorarioLiberado` (painel)
+13. **E-mail para clientes está DESATIVADO** (produção usa domínio *.vercel.app, sem domínio verificado na Resend — decisão do usuário, não mudar). `podeEnviarParaClientes()` controla; só e-mails para a profissional saem. Canais com cliente: **WhatsApp** (link `wa.me` com texto pronto) e **avisos no app**. Confirmação: botão de WhatsApp no painel envia o link `/a/[token]` e grava `lembrete_enviado_em` (= confirmação pedida). Confirmar exige clique na página
+14. **Liberou horário → lista de espera:** cancelamento, falta, exclusão, mudança de data/hora ou remarcação devem chamar `notificarListaEspera` (servidor) ou `avisarHorarioLiberado` (painel). Isso marca `status='notificado'` (= "vaga aberta" na UI) e o painel mostra toast + WhatsApp com link `/p/[codigo]`
 15. **Profissional pode encaixar** sobre conflito no form manual (decisão consciente); público/cliente nunca
 
 ---
@@ -291,7 +291,7 @@ npx tsc --noEmit && npm run lint && npm run build
 ```
 Build exige `NEXT_PUBLIC_SUPABASE_URL`/`ANON_KEY` (valores fictícios servem) e acesso ao Google Fonts (`next/font` Inter).
 
-**Env vars de produção (Vercel):** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (domínio verificado), `CRON_SECRET` (= `sm_config.cron_secret`), opcional `NEXT_PUBLIC_APP_URL`. Plano Hobby da Vercel: cron no máximo 1x/dia.
+**Env vars de produção (Vercel):** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (NÃO configurado: sem domínio próprio → remetente resend.dev, e-mail só chega na dona da conta), `CRON_SECRET` (= `sm_config.cron_secret`), opcional `NEXT_PUBLIC_APP_URL`. Plano Hobby da Vercel: cron no máximo 1x/dia.
 
 ---
 

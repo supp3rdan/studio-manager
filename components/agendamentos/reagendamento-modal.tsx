@@ -44,7 +44,7 @@ interface ReagendamentoModalProps {
   onClose: () => void;
   agendamento: Agendamento | null;
   profissionalId: string;
-  /** "cliente": a própria cliente remarca (regra de 2h, avisa o studio por e-mail). */
+  /** "cliente": a própria cliente remarca (regra de 2h). */
   modo?: "profissional" | "cliente";
 }
 
@@ -104,7 +104,7 @@ export function ReagendamentoModal({
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json.error || "Erro ao remarcar");
-        toast.success("Horário remarcado! Enviamos a confirmação por e-mail.");
+        toast.success("Horário remarcado! O studio foi avisado.");
       } else {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
@@ -150,7 +150,7 @@ export function ReagendamentoModal({
           </DialogTitle>
           <DialogDescription>
             {modo === "cliente"
-              ? "Escolha um novo dia e horário. O studio será avisado por e-mail."
+              ? "Escolha um novo dia e horário livre."
               : "Selecione nova data e horário. Os outros dados serão mantidos."}
           </DialogDescription>
         </DialogHeader>

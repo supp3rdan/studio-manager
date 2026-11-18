@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
-import { montarEmailLembrete, sendResendBatch } from "@/lib/email";
+import { montarEmailLembrete, podeEnviarParaClientes, sendResendBatch } from "@/lib/email";
 import { getCronSecret, getSistemaClient, notificarListaEspera } from "@/lib/lista-espera";
 
 export const dynamic = "force-dynamic";
@@ -8,8 +8,10 @@ export const maxDuration = 60;
 
 /**
  * Tarefa diária (Vercel Cron, 13:00 UTC = 09:00 em Manaus — ver vercel.json):
- *  1. Lembrete com botão de confirmação para quem tem horário até amanhã.
- *  2. Varredura da lista de espera (dias que voltaram a ter vaga).
+ *  1. Lembrete por e-mail com botão de confirmação — SÓ se houver domínio
+ *     verificado na Resend (sem isso, a confirmação é pedida pelo WhatsApp
+ *     no painel, com o link /a/[token]).
+ *  2. Varredura da lista de espera (marca dias que voltaram a ter vaga).
  * A Vercel envia `Authorization: Bearer <CRON_SECRET>` automaticamente.
  */
 function autorizado(request: Request, segredo: string): boolean {
@@ -40,10 +42,13 @@ export async function GET(request: Request) {
   }
 
   const supabase = getSistemaClient();
-  const resultado = { lembretes: 0, lembretesFalharam: false, listaEspera: 0 };
+  const resultado = { lembretes: 0, lembretesFalharam: false, lembretesDesativados: false, listaEspera: 0 };
 
-  // 1. Lembretes
-  const { data, error } = await supabase.rpc("sm_lembretes_pendentes", { p_segredo: segredo });
+  // 1. Lembretes (precisam de e-mail para clientes)
+  const { data, error } = podeEnviarParaClientes()
+    ? await supabase.rpc("sm_lembretes_pendentes", { p_segredo: segredo })
+    : { data: [], error: null };
+  resultado.lembretesDesativados = !podeEnviarParaClientes();
   if (error) {
     console.error("[cron] sm_lembretes_pendentes:", error);
   } else {

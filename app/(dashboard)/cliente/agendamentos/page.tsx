@@ -143,7 +143,7 @@ export default function ClienteAgendamentosPage() {
             <Hourglass className="w-4 h-4 text-[#C9A84C]" />
             Minha lista de espera
           </p>
-          <p className="text-xs text-muted-foreground">Avisamos por e-mail assim que abrir um horário.</p>
+          <p className="text-xs text-muted-foreground">Quando abrir um horário, aparece aqui o aviso &quot;abriu vaga&quot; e o studio também pode te chamar no WhatsApp.</p>
           <div className="divide-y divide-border">
             {listaEspera.map((e) => (
               <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">

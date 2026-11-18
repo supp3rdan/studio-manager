@@ -9,8 +9,8 @@ const bodySchema = z.object({
 
 /**
  * Chamado pelo painel do profissional quando um horário é liberado
- * (cancelamento, falta, exclusão ou mudança de data). Avisa a lista de espera
- * daquele dia, se houver vaga para o serviço de cada cliente.
+ * (cancelamento, falta, exclusão ou mudança de data). Marca "vaga aberta" para
+ * quem está na lista de espera daquele dia e devolve quantas são.
  */
 export async function POST(request: Request) {
   let json: unknown;
@@ -41,6 +41,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 
-  const avisadas = await notificarListaEspera(user.id, parsed.data.data);
-  return NextResponse.json({ success: true, avisadas });
+  const vagas = await notificarListaEspera(user.id, parsed.data.data);
+  return NextResponse.json({ success: true, vagas });
 }

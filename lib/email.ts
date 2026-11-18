@@ -65,14 +65,20 @@ export interface EmailMontado {
   html: string;
 }
 
+/**
+ * Sem domínio verificado na Resend (remetente @resend.dev), a Resend só entrega
+ * no e-mail dono da conta. Nesse modo NÃO enviamos e-mails para clientes
+ * (falhariam com 403); os da profissional continuam, pois costumam ser o
+ * mesmo e-mail da conta. Ao configurar RESEND_FROM_EMAIL com um domínio
+ * verificado, os e-mails para clientes voltam a funcionar sozinhos.
+ */
+export function podeEnviarParaClientes(): boolean {
+  const from = process.env.RESEND_FROM_EMAIL || REMETENTE_PADRAO;
+  return !!process.env.RESEND_API_KEY && !/@resend\.dev>?\s*$/i.test(from);
+}
+
 function getRemetente(): string {
   const from = process.env.RESEND_FROM_EMAIL || REMETENTE_PADRAO;
-  if (/@resend\.dev>?\s*$/i.test(from)) {
-    console.warn(
-      "[Resend] Remetente em resend.dev: só entrega para o e-mail dono da conta Resend. " +
-        "Verifique um domínio em resend.com/domains e defina RESEND_FROM_EMAIL (ex.: \"Studio <agenda@seudominio.com.br>\")."
-    );
-  }
   return from;
 }
 
@@ -209,7 +215,7 @@ export async function notificarCancelamento(raw: EmailCancelamentoParams): Promi
   const dataFormatada = formatData(params.dataHora);
 
   // ── E-mail para o cliente ──
-  if (params.clienteEmail) {
+  if (params.clienteEmail && podeEnviarParaClientes()) {
     const html = `
       <div style="font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #0A0A0A; color: #FFFFFF; max-width: 600px; margin: 0 auto; padding: 32px 24px; border-radius: 16px; border: 1px solid #262626;">
         <div style="text-align: center; margin-bottom: 24px;">
@@ -308,7 +314,7 @@ export async function notificarAgendamento(raw: EmailAgendamentoParams): Promise
   const valorFormatado = formatBrl(params.valorFinal);
 
   // ── 1. E-mail para a Cliente (se informou e-mail) ──
-  if (params.clienteEmail) {
+  if (params.clienteEmail && podeEnviarParaClientes()) {
     const assuntoCliente = plainSubject(`✨ Agendamento Confirmado — ${nomeExibicao}`);
     const htmlCliente = `
       <div style="font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #0A0A0A; color: #FFFFFF; max-width: 600px; margin: 0 auto; padding: 32px 24px; border-radius: 16px; border: 1px solid #262626;">
@@ -547,7 +553,7 @@ export async function notificarReagendamentoCliente(raw: ReagendamentoClientePar
 
   const envios: Promise<boolean>[] = [];
 
-  if (raw.clienteEmail) {
+  if (raw.clienteEmail && podeEnviarParaClientes()) {
     envios.push(
       sendResendEmail({
         to: raw.clienteEmail,

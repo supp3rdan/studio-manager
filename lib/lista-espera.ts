@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/url";
-import { montarEmailListaEspera, sendResendBatch } from "@/lib/email";
+import { montarEmailListaEspera, podeEnviarParaClientes, sendResendBatch } from "@/lib/email";
 
 /**
  * Cliente para as RPCs de sistema (sm_*). Usa a chave anon: a autorização é
@@ -30,9 +30,11 @@ interface VagaRow {
 }
 
 /**
- * Avisa por e-mail quem está na lista de espera de um dia que voltou a ter
- * horário livre. Sem filtros, varre todas as listas (usado pelo cron).
- * Retorna quantas clientes foram avisadas.
+ * Marca como "vaga aberta" as entradas da lista de espera cujo dia voltou a ter
+ * horário livre (a cliente vê na tela dela e a profissional vê no painel, com
+ * botão de WhatsApp). Se houver domínio verificado na Resend, também envia
+ * e-mail. Sem filtros, varre todas as listas (usado pelo cron).
+ * Retorna quantas entradas ganharam vaga.
  */
 export async function notificarListaEspera(
   profissionalId?: string | null,
@@ -55,7 +57,10 @@ export async function notificarListaEspera(
     return 0;
   }
 
-  const emails = ((vagas ?? []) as VagaRow[])
+  const linhas = (vagas ?? []) as VagaRow[];
+  if (!podeEnviarParaClientes()) return linhas.length;
+
+  const emails = linhas
     .filter((v) => v.cliente_email)
     .map((v) =>
       montarEmailListaEspera({
@@ -74,5 +79,5 @@ export async function notificarListaEspera(
     const chave = createHash("sha256").update(ids).digest("hex");
     await sendResendBatch(emails, `lista-espera/${chave}`);
   }
-  return emails.length;
+  return linhas.length;
 }
