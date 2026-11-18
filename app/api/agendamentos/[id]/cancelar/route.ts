@@ -1,100 +1,105 @@
 import { NextResponse } from "next/server";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { z } from "zod";
+import { createClient } from "@/lib/supabase/server";
 import { notificarCancelamento } from "@/lib/email";
+import { rpcErrorResponse } from "@/lib/api-errors";
 
-function getCleanUrl() {
-  return (process.env.NEXT_PUBLIC_SUPABASE_URL || "")
-    .replace(/\/rest\/v1\/?$/, "")
-    .replace(/\/+$/, "");
+type Relacao<T> = T | T[] | null;
+function primeiro<T>(rel: Relacao<T>): T | null {
+  return Array.isArray(rel) ? rel[0] ?? null : rel;
+}
+
+interface AgendamentoParaNotificar {
+  id: string;
+  data_hora: string;
+  local: string;
+  clientes: Relacao<{ nome: string | null; whatsapp: string | null }>;
+  servicos: Relacao<{ nome: string | null }>;
+  profissional: Relacao<{
+    nome: string | null;
+    nome_studio: string | null;
+    email: string | null;
+    whatsapp: string | null;
+  }>;
 }
 
 export async function POST(
-  request: Request,
+  _request: Request,
   { params }: { params: { id: string } }
 ) {
-  try {
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-      getCleanUrl(),
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() { return cookieStore.getAll(); },
-          setAll(cookiesToSet: Array<{ name: string; value: string; options?: CookieOptions }>) {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          },
-        },
-      }
-    );
+  const idParse = z.string().uuid().safeParse(params.id);
+  if (!idParse.success) {
+    return NextResponse.json({ error: "Agendamento inválido." }, { status: 400 });
+  }
+  const agendamentoId = idParse.data;
 
-    const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
     }
 
-    const agendamentoId = params.id;
-
-    // Busca dados do agendamento para notificação antes de cancelar
+    // Dados para a notificação (RLS garante que só a própria cliente lê)
     const { data: agBefore } = await supabase
       .from("agendamentos")
-      .select(`
-        id, data_hora, local, status, cliente_user_id,
+      .select(
+        `
+        id, data_hora, local,
         clientes ( nome, whatsapp ),
         servicos ( nome ),
         profissional:perfis!agendamentos_user_id_fkey ( nome, nome_studio, email, whatsapp )
-      `)
+      `
+      )
       .eq("id", agendamentoId)
       .eq("cliente_user_id", user.id)
-      .single();
+      .maybeSingle<AgendamentoParaNotificar>();
 
-    // Chama RPC SECURITY DEFINER para cancelar com validação de 2h
+    // RPC SECURITY DEFINER valida dono e antecedência mínima de 2h
     const { data: rpcResult, error: rpcError } = await supabase.rpc(
       "cancelar_agendamento_cliente",
       {
         p_agendamento_id: agendamentoId,
+        // Compatibilidade com a versão anterior à migration 012 (a nova usa auth.uid()).
         p_cliente_user_id: user.id,
       }
     );
 
     if (rpcError) {
-      return NextResponse.json(
-        { error: rpcError.message || "Erro ao cancelar agendamento." },
-        { status: 400 }
-      );
+      return rpcErrorResponse(rpcError, "Erro ao cancelar agendamento.");
     }
 
-    // Busca email do cliente para notificação
-    const { data: perfilCliente } = await supabase
-      .from("perfis")
-      .select("email, nome")
-      .eq("id", user.id)
-      .single();
-
-    // Envia e-mails de notificação em background
     if (agBefore) {
+      const { data: perfilCliente } = await supabase
+        .from("perfis")
+        .select("email, nome")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const cliente = primeiro(agBefore.clientes);
+      const servico = primeiro(agBefore.servicos);
+      const prof = primeiro(agBefore.profissional);
+
       notificarCancelamento({
-        clienteNome: (agBefore.clientes as any)?.nome || perfilCliente?.nome || "Cliente",
-        clienteEmail: perfilCliente?.email || null,
-        clienteWhatsapp: (agBefore.clientes as any)?.whatsapp || null,
-        profissionalNome: (agBefore.profissional as any)?.nome || "Profissional",
-        profissionalEmail: (agBefore.profissional as any)?.email || null,
-        profissionalWhatsapp: (agBefore.profissional as any)?.whatsapp || null,
-        nomeStudio: (agBefore.profissional as any)?.nome_studio || null,
-        servicoNome: (agBefore.servicos as any)?.nome || "Procedimento",
+        clienteNome: cliente?.nome || perfilCliente?.nome || "Cliente",
+        clienteEmail: perfilCliente?.email || user.email || null,
+        clienteWhatsapp: cliente?.whatsapp || null,
+        profissionalNome: prof?.nome || "Profissional",
+        profissionalEmail: prof?.email || null,
+        profissionalWhatsapp: prof?.whatsapp || null,
+        nomeStudio: prof?.nome_studio || null,
+        servicoNome: servico?.nome || "Procedimento",
         dataHora: agBefore.data_hora,
         local: agBefore.local,
       }).catch((err) => console.error("[Email cancelamento]:", err));
     }
 
-    return NextResponse.json({ success: true, ...rpcResult });
-  } catch (error: any) {
+    return NextResponse.json({ success: true, ...(rpcResult ?? {}) });
+  } catch (error) {
     console.error("[POST /api/agendamentos/[id]/cancelar]:", error);
-    return NextResponse.json(
-      { error: error?.message || "Erro inesperado." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erro inesperado." }, { status: 500 });
   }
 }

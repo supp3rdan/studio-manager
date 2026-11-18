@@ -1,10 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-
-function getCleanUrl() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  return url.replace(/\/rest\/v1\/?$/, "").replace(/\/+$/, "");
-}
+import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/url";
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -21,8 +17,8 @@ export async function middleware(request: NextRequest) {
   }
 
   const supabase = createServerClient(
-    getCleanUrl(),
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    getSupabaseUrl(),
+    getSupabaseAnonKey(),
     {
       cookies: {
         getAll() {

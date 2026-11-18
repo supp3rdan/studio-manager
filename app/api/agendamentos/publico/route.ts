@@ -1,43 +1,51 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { z } from "zod";
+import { createClient } from "@/lib/supabase/server";
 import { notificarAgendamento } from "@/lib/email";
+import { rpcErrorResponse, validationErrorResponse } from "@/lib/api-errors";
 
-function getApiClient() {
-  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "");
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    "";
-  return createClient(url, key, {
-    auth: { persistSession: false },
-  });
-}
+const bodySchema = z.object({
+  codigo_profissional: z
+    .union([z.string(), z.number()])
+    .transform((v) => String(v).trim())
+    .pipe(z.string().regex(/^\d{4}$/, "Código do profissional inválido.")),
+  servico_id: z.string().uuid("Serviço inválido."),
+  data_hora: z
+    .string()
+    .refine((v) => !Number.isNaN(Date.parse(v)), "Data/hora inválida."),
+  local: z.enum(["Studio", "Domicílio"]).catch("Studio"),
+  forma_pagamento: z.string().trim().max(120).nullish(),
+  cliente_nome: z
+    .string({ required_error: "Informe seu nome." })
+    .trim()
+    .min(1, "Informe seu nome.")
+    .max(120, "Nome muito longo."),
+  cliente_whatsapp: z.string().trim().max(30).nullish(),
+  cliente_email: z.string().trim().email("E-mail inválido.").max(254).nullish().or(z.literal("")),
+  observacoes: z.string().trim().max(1000, "Observações muito longas.").nullish(),
+  // `cliente_user_id` enviado pelo navegador é ignorado: a cliente é
+  // identificada pela sessão (cookie).
+});
 
 export async function POST(request: Request) {
+  let json: unknown;
   try {
-    const body = await request.json();
+    json = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Corpo da requisição inválido." }, { status: 400 });
+  }
+
+  const parsed = bodySchema.safeParse(json);
+  if (!parsed.success) return validationErrorResponse(parsed.error);
+  const body = parsed.data;
+
+  try {
+    const supabase = await createClient();
     const {
-      codigo_profissional,
-      servico_id,
-      data_hora,
-      local = "Studio",
-      forma_pagamento,
-      cliente_nome,
-      cliente_whatsapp,
-      cliente_email,
-      cliente_user_id,
-      observacoes,
-    } = body;
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    if (!codigo_profissional || !servico_id || !data_hora || !cliente_nome) {
-      return NextResponse.json(
-        { error: "Dados obrigatórios não preenchidos (código, serviço, data ou nome)." },
-        { status: 400 }
-      );
-    }
-
-    // Validação obrigatória: Cliente precisa estar cadastrado e logado
-    if (!cliente_user_id) {
+    if (!user) {
       return NextResponse.json(
         {
           error:
@@ -47,188 +55,66 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = getApiClient();
-    const cleanWhatsapp = (cliente_whatsapp || "").replace(/\D/g, "");
-    const dataHoraIso = new Date(data_hora).toISOString();
+    const cleanWhatsapp = (body.cliente_whatsapp || "").replace(/\D/g, "");
+    const clienteEmail = body.cliente_email || user.email || null;
+    const dataHoraIso = new Date(body.data_hora).toISOString();
 
-    // ── ESTRATÉGIA 1: Tenta executar via Função RPC com SECURITY DEFINER ──
     const { data: rpcResult, error: rpcError } = await supabase.rpc(
       "criar_agendamento_publico",
       {
-        p_codigo_profissional: String(codigo_profissional).trim(),
-        p_servico_id: servico_id,
+        p_codigo_profissional: body.codigo_profissional,
+        p_servico_id: body.servico_id,
         p_data_hora: dataHoraIso,
-        p_local: local || "Studio",
-        p_forma_pagamento: forma_pagamento || null,
-        p_cliente_nome: cliente_nome.trim(),
+        p_local: body.local,
+        p_forma_pagamento: body.forma_pagamento || null,
+        p_cliente_nome: body.cliente_nome,
         p_cliente_whatsapp: cleanWhatsapp || null,
-        p_cliente_email: cliente_email || null,
-        p_cliente_user_id: cliente_user_id || null,
-        p_observacoes: observacoes || null,
+        p_cliente_email: clienteEmail,
+        // Mantido por compatibilidade com a RPC anterior à migration 012
+        // (a nova versão usa auth.uid() e ignora este valor).
+        p_cliente_user_id: user.id,
+        p_observacoes: body.observacoes || null,
       }
     );
 
-    if (!rpcError && rpcResult) {
-      // Dispara e-mails em segundo plano
-      notificarAgendamento({
-        clienteNome: cliente_nome.trim(),
-        clienteEmail: cliente_email || null,
-        clienteWhatsapp: cleanWhatsapp || null,
-        profissionalNome: rpcResult.profissional?.nome || "Profissional",
-        profissionalEmail: rpcResult.profissional?.email,
-        profissionalWhatsapp: rpcResult.profissional?.whatsapp,
-        nomeStudio: rpcResult.profissional?.nome_studio,
-        servicoNome: rpcResult.servicos?.nome || "Procedimento",
-        servicoCategoria: rpcResult.servicos?.categoria,
-        valorFinal: rpcResult.valor_final || 0,
-        dataHora: dataHoraIso,
-        local: local,
-        formaPagamento: forma_pagamento,
-      }).catch((err) => {
-        console.error("[Erro email background RPC]:", err);
-      });
-
-      return NextResponse.json({
-        success: true,
-        agendamento: rpcResult,
-        profissional: rpcResult.profissional,
-      });
-    }
-
-    if (rpcError) {
-      console.warn(
-        "[RPC criar_agendamento_publico indisponível ou falhou, tentando fallback direto]:",
-        rpcError.message
+    if (rpcError || !rpcResult) {
+      return rpcErrorResponse(
+        rpcError ?? {},
+        "Não foi possível confirmar o agendamento. Tente novamente."
       );
     }
 
-    // ── ESTRATÉGIA 2: Fallback direto via tabelas ──
-    // 1. Busca profissional pelo código
-    const { data: profissional, error: profError } = await supabase
-      .from("perfis")
-      .select("id, nome, nome_studio, email, whatsapp, codigo_profissional")
-      .eq("codigo_profissional", String(codigo_profissional).trim())
-      .single();
-
-    if (profError || !profissional) {
-      return NextResponse.json(
-        { error: `Profissional #${codigo_profissional} não encontrado.` },
-        { status: 404 }
-      );
-    }
-
-    // 2. Busca e valida o serviço
-    const { data: servico, error: servError } = await supabase
-      .from("servicos")
-      .select("id, nome, categoria, preco_base, ativo")
-      .eq("id", servico_id)
-      .eq("user_id", profissional.id)
-      .single();
-
-    if (servError || !servico || !servico.ativo) {
-      return NextResponse.json(
-        { error: "Serviço não encontrado ou inativo." },
-        { status: 404 }
-      );
-    }
-
-    // 3. Tenta localizar ou criar cliente (ignora erro se RLS bloquear)
-    let clienteId: string | null = null;
-    try {
-      if (cleanWhatsapp) {
-        const { data: existingClient } = await supabase
-          .from("clientes")
-          .select("id")
-          .eq("user_id", profissional.id)
-          .eq("whatsapp", cleanWhatsapp)
-          .limit(1)
-          .maybeSingle();
-
-        if (existingClient) clienteId = existingClient.id;
-      }
-
-      if (!clienteId) {
-        const { data: newClient } = await supabase
-          .from("clientes")
-          .insert({
-            user_id: profissional.id,
-            nome: cliente_nome.trim(),
-            whatsapp: cleanWhatsapp || null,
-          })
-          .select("id")
-          .maybeSingle();
-
-        if (newClient) clienteId = newClient.id;
-      }
-    } catch {
-      // Ignora erro de RLS na tabela de clientes
-    }
-
-    // 4. Cria o agendamento
-    const payloadAgendamento = {
-      user_id: profissional.id,
-      cliente_id: clienteId,
-      cliente_user_id: cliente_user_id || null,
-      servico_id: servico.id,
-      data_hora: dataHoraIso,
-      valor_final: servico.preco_base,
-      forma_pagamento: forma_pagamento || null,
-      status: "Agendado",
-      local: local === "Domicílio" ? "Domicílio" : "Studio",
-      observacoes: observacoes || null,
-    };
-
-    const { error: agendamentoInsertError } = await supabase
-      .from("agendamentos")
-      .insert(payloadAgendamento);
-
-    if (agendamentoInsertError) {
-      console.error("[Erro ao inserir agendamento]:", agendamentoInsertError);
-      return NextResponse.json(
-        {
-          error:
-            agendamentoInsertError.message ||
-            "Erro de permissão no banco de dados ao confirmar agendamento.",
-        },
-        { status: 500 }
-      );
-    }
-
-    // 5. Notificações por e-mail
+    // E-mails em segundo plano (não bloqueiam a resposta)
     notificarAgendamento({
-      clienteNome: cliente_nome.trim(),
-      clienteEmail: cliente_email || null,
+      clienteNome: body.cliente_nome,
+      clienteEmail,
       clienteWhatsapp: cleanWhatsapp || null,
-      profissionalNome: profissional.nome,
-      profissionalEmail: profissional.email,
-      profissionalWhatsapp: profissional.whatsapp,
-      nomeStudio: profissional.nome_studio,
-      servicoNome: servico.nome,
-      servicoCategoria: servico.categoria,
-      valorFinal: servico.preco_base,
+      profissionalNome: rpcResult.profissional?.nome || "Profissional",
+      profissionalEmail: rpcResult.profissional?.email,
+      profissionalWhatsapp: rpcResult.profissional?.whatsapp,
+      nomeStudio: rpcResult.profissional?.nome_studio,
+      servicoNome: rpcResult.servicos?.nome || "Procedimento",
+      servicoCategoria: rpcResult.servicos?.categoria,
+      valorFinal: rpcResult.valor_final || 0,
       dataHora: dataHoraIso,
-      local: local,
-      formaPagamento: forma_pagamento,
+      local: body.local,
+      formaPagamento: body.forma_pagamento,
     }).catch((err) => {
-      console.error("[Erro email background fallback]:", err);
+      console.error("[Erro email agendamento]:", err);
     });
+
+    // Não devolve o e-mail do profissional ao navegador da cliente.
+    const { email: _email, ...profissionalPublico } = rpcResult.profissional ?? {};
 
     return NextResponse.json({
       success: true,
-      agendamento: {
-        ...payloadAgendamento,
-        servicos: servico,
-      },
-      profissional: {
-        nome: profissional.nome,
-        nome_studio: profissional.nome_studio,
-        whatsapp: profissional.whatsapp,
-      },
+      agendamento: { ...rpcResult, profissional: profissionalPublico },
+      profissional: profissionalPublico,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("[POST /api/agendamentos/publico]", error);
     return NextResponse.json(
-      { error: error?.message || "Erro inesperado ao confirmar agendamento." },
+      { error: "Erro inesperado ao confirmar agendamento." },
       { status: 500 }
     );
   }

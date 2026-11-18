@@ -16,6 +16,30 @@ interface EmailAgendamentoParams {
   formaPagamento?: string | null;
 }
 
+/** Escapa texto digitado por usuários antes de inserir no HTML do e-mail. */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Remove quebras de linha (evita header injection no assunto). */
+function plainSubject(value: string): string {
+  return value.replace(/[\r\n]+/g, " ").slice(0, 200);
+}
+
+/** Retorna uma cópia com todos os campos de texto escapados para HTML. */
+function escapeParams<T extends object>(params: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(params)) {
+    out[k] = typeof v === "string" ? escapeHtml(v) : v;
+  }
+  return out as T;
+}
+
 function formatBrl(valor: number): string {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -92,7 +116,9 @@ interface EmailCancelamentoParams {
   local: string;
 }
 
-export async function notificarCancelamento(params: EmailCancelamentoParams): Promise<void> {
+export async function notificarCancelamento(raw: EmailCancelamentoParams): Promise<void> {
+  const params = escapeParams(raw);
+  const nomeExibicao = raw.nomeStudio || raw.profissionalNome || "Studio";
   const studioOuProfissional = params.nomeStudio || params.profissionalNome || "Studio";
   const dataFormatada = formatData(params.dataHora);
 
@@ -134,8 +160,8 @@ export async function notificarCancelamento(params: EmailCancelamentoParams): Pr
       </div>
     `;
     await sendResendEmail({
-      to: params.clienteEmail,
-      subject: `❌ Agendamento Cancelado — ${studioOuProfissional}`,
+      to: raw.clienteEmail!,
+      subject: plainSubject(`❌ Agendamento Cancelado — ${nomeExibicao}`),
       html,
     });
   }
@@ -181,21 +207,23 @@ export async function notificarCancelamento(params: EmailCancelamentoParams): Pr
       </div>
     `;
     await sendResendEmail({
-      to: params.profissionalEmail,
-      subject: `⚠️ Agendamento Cancelado — ${params.clienteNome}`,
+      to: raw.profissionalEmail!,
+      subject: plainSubject(`⚠️ Agendamento Cancelado — ${raw.clienteNome}`),
       html,
     });
   }
 }
 
-export async function notificarAgendamento(params: EmailAgendamentoParams): Promise<void> {
+export async function notificarAgendamento(raw: EmailAgendamentoParams): Promise<void> {
+  const params = escapeParams(raw);
+  const nomeExibicao = raw.nomeStudio || raw.profissionalNome || "Studio";
   const studioOuProfissional = params.nomeStudio || params.profissionalNome || "Studio";
   const dataFormatada = formatData(params.dataHora);
   const valorFormatado = formatBrl(params.valorFinal);
 
   // ── 1. E-mail para a Cliente (se informou e-mail) ──
   if (params.clienteEmail) {
-    const assuntoCliente = `✨ Agendamento Confirmado — ${studioOuProfissional}`;
+    const assuntoCliente = plainSubject(`✨ Agendamento Confirmado — ${nomeExibicao}`);
     const htmlCliente = `
       <div style="font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #0A0A0A; color: #FFFFFF; max-width: 600px; margin: 0 auto; padding: 32px 24px; border-radius: 16px; border: 1px solid #262626;">
         <div style="text-align: center; margin-bottom: 24px;">
@@ -253,7 +281,7 @@ export async function notificarAgendamento(params: EmailAgendamentoParams): Prom
     `;
 
     await sendResendEmail({
-      to: params.clienteEmail,
+      to: raw.clienteEmail!,
       subject: assuntoCliente,
       html: htmlCliente,
     });
@@ -261,7 +289,7 @@ export async function notificarAgendamento(params: EmailAgendamentoParams): Prom
 
   // ── 2. E-mail para o Profissional ──
   if (params.profissionalEmail) {
-    const assuntoProfissional = `📅 Novo Agendamento Recebido — ${params.clienteNome}`;
+    const assuntoProfissional = plainSubject(`📅 Novo Agendamento Recebido — ${raw.clienteNome}`);
     const htmlProfissional = `
       <div style="font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #0A0A0A; color: #FFFFFF; max-width: 600px; margin: 0 auto; padding: 32px 24px; border-radius: 16px; border: 1px solid #262626;">
         <div style="text-align: center; margin-bottom: 24px;">
@@ -322,7 +350,7 @@ export async function notificarAgendamento(params: EmailAgendamentoParams): Prom
     `;
 
     await sendResendEmail({
-      to: params.profissionalEmail,
+      to: raw.profissionalEmail!,
       subject: assuntoProfissional,
       html: htmlProfissional,
     });

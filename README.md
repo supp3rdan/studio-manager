@@ -140,6 +140,9 @@ No painel do Supabase → **SQL Editor**, execute os arquivos em ordem:
 | 007 | `007_fix_servicos_rls_e_duracao.sql` | Correção RLS serviços + duração 60min para Cílios/Depilação |
 | 008 | `008_fix_servicos_publico_rls.sql` | RPC `get_servicos_do_profissional` para clientes lerem serviços |
 | 009 | `009_agendamentos_ocupados_e_login_obrigatorio.sql` | RPC `get_agendamentos_ocupados` + login obrigatório para agendar |
+| 010 | `010_cancelamento_cliente_e_reagendamento.sql` | Cancelamento pela cliente (2h) e reagendamento pelo profissional |
+| 011 | `011_fuso_horario_manaus.sql` | Fuso horário padrão America/Manaus |
+| 012 | `012_seguranca_agendamentos.sql` | Segurança: conflito de horário no banco, RPCs com `auth.uid()`, RLS revisado, índices |
 
 ### 5. Inicie o servidor
 ```bash

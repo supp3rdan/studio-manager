@@ -6,6 +6,33 @@ Todas as mudanças significativas do projeto são documentadas aqui.
 
 ---
 
+## [0.12.0] — Novembro 2026 — Segurança e integridade da agenda
+
+### Migration 012 — `012_seguranca_agendamentos.sql`
+
+> ⚠️ **Ordem de implantação:** primeiro faça o deploy desta versão (merge na `main`), depois execute a migration 012 no SQL Editor do Supabase. O código novo funciona com o banco antigo e com o novo; o inverso não é verdade.
+
+#### Segurança
+- **Agendamento sem duplicidade:** `criar_agendamento_publico` agora valida, dentro do banco e com lock por profissional (`pg_advisory_xact_lock`), conflito com outros agendamentos, bloqueios de horário/dia, horários no passado e fora da grade (07:00–22:00, a cada 30 min, término até 22:30). Conflito retorna HTTP **409**.
+- **Identidade pela sessão:** as RPCs `criar_agendamento_publico`, `cancelar_agendamento_cliente` e `reagendar_agendamento` usam `auth.uid()`; os parâmetros de id de usuário foram mantidos só por compatibilidade e são ignorados. `criar_agendamento_publico` deixou de ser executável por `anon`.
+- **Reagendamento** valida conflito com outros agendamentos do profissional e impede datas no passado.
+- **RLS:** removidas as políticas `agendamentos_insert_publico` e `clientes_insert_publico` (INSERT irrestrito) e `indisponibilidades_select_publico` (leitura pública dos bloqueios).
+- **API `POST /api/agendamentos/publico`:** identifica a cliente pelo cookie de sessão (não mais pelo `cliente_user_id` do corpo), valida o corpo com Zod e não tem mais o fallback de INSERT direto nas tabelas (que também ignorava o preço promocional). Não devolve mais o e-mail do profissional ao navegador.
+- **Sem `SUPABASE_SERVICE_ROLE_KEY`:** as rotas de API usam apenas a chave anon + RPCs. A variável pode ser removida da Vercel.
+- **E-mails:** campos digitados por usuários são escapados antes de entrar no HTML (evita injeção de HTML/links falsos); assuntos sem quebras de linha.
+- **Next.js 14.2.16 → 14.2.35** (correções de segurança, incluindo bypass de middleware).
+
+#### Otimização e manutenção
+- Nova RPC `horarios_disponiveis_publico` como **fonte única** do cálculo de horários livres; `get_horarios_disponiveis` passa a delegar para ela. A API `/api/horarios-disponiveis` só chama a RPC (com fallback temporário para o cálculo antigo enquanto a migration 012 não for aplicada).
+- Corrige `get_horarios_disponiveis`: as migrations 006 e 011 falhavam com *"cannot change return type of existing function"* quando a versão da 004 existia; a 012 remove todas as versões antes de recriar.
+- Horários passados são filtrados no servidor (fuso de Manaus); o front deixou de filtrar pelo fuso do aparelho.
+- Em caso de erro, o front não mostra mais a grade inteira como "livre".
+- Índices: `agendamentos (user_id, data_hora)`, `agendamentos (cliente_user_id)`, `indisponibilidades (user_id)`, `clientes (user_id, whatsapp)`.
+- Erros das RPCs mapeados para status HTTP (`lib/api-errors.ts`); URL do Supabase centralizada em `lib/supabase/url.ts`.
+- `tsconfig.tsbuildinfo` removido do repositório; CI no GitHub Actions (lint, typecheck e build).
+
+---
+
 ## [0.11.0] — Novembro 2026 — Fuso horário padrão de Manaus / AM (America/Manaus, UTC-4)
 
 ### Migration 011 — `011_fuso_horario_manaus.sql`
