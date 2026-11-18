@@ -2,38 +2,52 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { differenceInHours, parseISO } from "date-fns";
 import {
-  CalendarDays,
-  Phone,
-  Sparkles,
-  Search,
-  Clock,
-  MapPin,
-  CreditCard,
+  CalendarDays, Phone, Sparkles, Search, Clock,
+  MapPin, CreditCard, XCircle, Loader2, AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead,
+  TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { getAgendamentosDoCliente } from "@/lib/queries/perfis";
 import {
-  formatCurrency,
-  formatDateTime,
-  getStatusColor,
-  getWhatsAppUrl,
-  cn,
+  formatCurrency, formatDateTime, getStatusColor, getWhatsAppUrl, cn,
 } from "@/lib/utils";
 import type { Agendamento } from "@/types/database";
+
+/** Verifica se o agendamento pode ser cancelado pelo cliente (> 2h de antecedência) */
+function podeCancelar(ag: Agendamento): boolean {
+  if (!["Agendado", "Confirmado"].includes(ag.status)) return false;
+  const horasAte = differenceInHours(parseISO(ag.data_hora), new Date());
+  return horasAte > 2;
+}
+
+/** Verifica se tem menos de 2h (avisa que não pode cancelar online) */
+function dentroJanelaCancelamento(ag: Agendamento): boolean {
+  if (!["Agendado", "Confirmado"].includes(ag.status)) return false;
+  const horasAte = differenceInHours(parseISO(ag.data_hora), new Date());
+  return horasAte <= 2 && horasAte > 0;
+}
 
 export default function ClienteAgendamentosPage() {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [cancelando, setCancelando] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -46,9 +60,27 @@ export default function ClienteAgendamentosPage() {
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+
+  const handleCancelar = async (agendamentoId: string) => {
+    setCancelando(agendamentoId);
+    try {
+      const res = await fetch(`/api/agendamentos/${agendamentoId}/cancelar`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || "Erro ao cancelar agendamento");
+        return;
+      }
+      toast.success("Agendamento cancelado com sucesso! O horário foi liberado.");
+      load();
+    } catch {
+      toast.error("Erro de conexão ao cancelar. Tente novamente.");
+    } finally {
+      setCancelando(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -57,7 +89,7 @@ export default function ClienteAgendamentosPage() {
         <div>
           <h2 className="text-2xl font-bold text-foreground">Meus Agendamentos</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Acompanhe o status dos seus procedimentos agendados
+            Acompanhe e gerencie seus procedimentos agendados
           </p>
         </div>
         <Link href="/buscar">
@@ -67,6 +99,18 @@ export default function ClienteAgendamentosPage() {
           </Button>
         </Link>
       </div>
+
+      {/* Aviso sobre política de cancelamento */}
+      {agendamentos.some((ag) => ["Agendado", "Confirmado"].includes(ag.status)) && (
+        <div className="flex items-start gap-3 p-3.5 rounded-xl bg-[#C9A84C]/8 border border-[#C9A84C]/20 text-sm">
+          <Clock className="w-4 h-4 text-[#C9A84C] shrink-0 mt-0.5" />
+          <p className="text-muted-foreground">
+            <span className="text-foreground font-medium">Política de cancelamento:</span>{" "}
+            Você pode cancelar agendamentos com mais de <strong className="text-foreground">2 horas</strong> de antecedência diretamente pelo app.
+            Para cancelamentos de última hora, entre em contato com o profissional pelo WhatsApp.
+          </p>
+        </div>
+      )}
 
       {/* Table */}
       <div className="rounded-xl border border-border bg-surface overflow-hidden">
@@ -79,7 +123,7 @@ export default function ClienteAgendamentosPage() {
               <TableHead>Valor</TableHead>
               <TableHead>Local</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right">Contato</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -116,6 +160,9 @@ export default function ClienteAgendamentosPage() {
                 const whatsUrl = ag.profissional?.whatsapp
                   ? getWhatsAppUrl(ag.profissional.whatsapp)
                   : null;
+                const podeCanc = podeCancelar(ag);
+                const dentroJanela = dentroJanelaCancelamento(ag);
+                const isCancelando = cancelando === ag.id;
 
                 return (
                   <TableRow key={ag.id}>
@@ -156,19 +203,87 @@ export default function ClienteAgendamentosPage() {
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
-                      {whatsUrl ? (
-                        <a
-                          href={whatsUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20 transition-all"
-                        >
-                          <Phone className="w-3.5 h-3.5" />
-                          <span>WhatsApp</span>
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">—</span>
-                      )}
+                      <div className="flex items-center justify-end gap-1.5">
+                        {/* Botão Cancelar */}
+                        {podeCanc && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 gap-1.5 text-xs border-destructive/40 text-destructive hover:bg-destructive/10"
+                                disabled={isCancelando}
+                              >
+                                {isCancelando ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <XCircle className="w-3.5 h-3.5" />
+                                )}
+                                Cancelar
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle className="flex items-center gap-2">
+                                  <XCircle className="w-5 h-5 text-destructive" />
+                                  Cancelar Agendamento?
+                                </AlertDialogTitle>
+                                <AlertDialogDescription asChild>
+                                  <div className="space-y-3 text-sm text-muted-foreground">
+                                    <p>
+                                      Você está prestes a cancelar o agendamento de{" "}
+                                      <strong className="text-foreground">{ag.servicos?.nome}</strong>{" "}
+                                      em{" "}
+                                      <strong className="text-foreground">
+                                        {ag.profissional?.nome_studio || ag.profissional?.nome}
+                                      </strong>.
+                                    </p>
+                                    <p className="text-xs">{formatDateTime(ag.data_hora)}</p>
+                                    <p className="text-xs text-[#C9A84C]">
+                                      O horário ficará disponível para outros clientes.
+                                    </p>
+                                  </div>
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Manter Agendamento</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleCancelar(ag.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Sim, Cancelar
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+
+                        {/* Aviso: dentro da janela de 2h */}
+                        {dentroJanela && (
+                          <span
+                            className="inline-flex items-center gap-1 text-[10px] text-amber-400 border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 rounded-full"
+                            title="Menos de 2h para o atendimento — entre em contato pelo WhatsApp"
+                          >
+                            <AlertTriangle className="w-3 h-3" />
+                            Contate pelo WhatsApp
+                          </span>
+                        )}
+
+                        {/* WhatsApp do profissional */}
+                        {whatsUrl ? (
+                          <a
+                            href={whatsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20 transition-all"
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                            <span>WhatsApp</span>
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -180,4 +295,3 @@ export default function ClienteAgendamentosPage() {
     </div>
   );
 }
-

@@ -1,61 +1,47 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2, CalendarDays, Filter, ChevronDown, FileDown, Loader2 } from "lucide-react";
+import {
+  Plus, Pencil, Trash2, CalendarDays, Filter, ChevronDown,
+  FileDown, Loader2, List, CalendarRange, RefreshCw,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AgendamentoForm } from "@/components/agendamentos/agendamento-form";
+import { ReagendamentoModal } from "@/components/agendamentos/reagendamento-modal";
+import { CalendarioSemanal } from "@/components/agendamentos/calendario-semanal";
 import { getAgendamentos, deleteAgendamento, updateAgendamento } from "@/lib/queries/agendamentos";
 import { generateAgendamentosPDF } from "@/lib/pdf-report";
+import { createClient } from "@/lib/supabase/client";
 import {
-  formatCurrency,
-  formatDateTime,
-  getStatusColor,
-  cn,
+  formatCurrency, formatDateTime, getStatusColor, cn,
 } from "@/lib/utils";
 import type { Agendamento, StatusAgendamento } from "@/types/database";
 
 const ALL_STATUSES: StatusAgendamento[] = [
-  "Agendado",
-  "Confirmado",
-  "Concluído",
-  "Cancelado",
-  "Não Compareceu",
+  "Agendado", "Confirmado", "Concluído", "Cancelado", "Não Compareceu",
 ];
 
-const STATUS_OPTIONS: { value: string; label: string }[] = [
+const STATUS_OPTIONS = [
   { value: "all", label: "Todos os status" },
   ...ALL_STATUSES.map((s) => ({ value: s, label: s })),
 ];
 
-// ── Inline status selector per row ─────────────────────────────────────────
+type ViewMode = "lista" | "calendario";
+
+// ── Inline status selector per row ──────────────────────────────────────────
 function StatusSelector({
   agendamento,
   onUpdated,
@@ -67,10 +53,7 @@ function StatusSelector({
   const [loading, setLoading] = useState(false);
 
   const handleSelect = async (status: StatusAgendamento) => {
-    if (status === agendamento.status) {
-      setOpen(false);
-      return;
-    }
+    if (status === agendamento.status) { setOpen(false); return; }
     setLoading(true);
     try {
       await updateAgendamento(agendamento.id, { status });
@@ -112,9 +95,7 @@ function StatusSelector({
               onClick={() => handleSelect(s)}
               className={cn(
                 "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-left transition-colors",
-                isActive
-                  ? "bg-white/5 cursor-default"
-                  : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                isActive ? "bg-white/5 cursor-default" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
               )}
             >
               <span
@@ -123,16 +104,9 @@ function StatusSelector({
                   isActive ? "border-[#C9A84C]" : "border-border"
                 )}
               >
-                {isActive && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#C9A84C]" />
-                )}
+                {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#C9A84C]" />}
               </span>
-              <span
-                className={cn(
-                  "px-1.5 py-0.5 rounded-full border text-[10px]",
-                  getStatusColor(s)
-                )}
-              >
+              <span className={cn("px-1.5 py-0.5 rounded-full border text-[10px]", getStatusColor(s))}>
                 {s}
               </span>
             </button>
@@ -151,6 +125,10 @@ export default function AgendamentosPage() {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingAgendamento, setEditingAgendamento] = useState<Agendamento | null>(null);
+  const [reagendamentoOpen, setReagendamentoOpen] = useState(false);
+  const [reagendamentoTarget, setReagendamentoTarget] = useState<Agendamento | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("lista");
+  const [profissionalId, setProfissionalId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -163,7 +141,14 @@ export default function AgendamentosPage() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    // Pega o user_id do profissional para o reagendamento
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setProfissionalId(user.id);
+    });
+  }, [load]);
 
   const filtered = agendamentos.filter(
     (a) => statusFilter === "all" || a.status === statusFilter
@@ -180,10 +165,7 @@ export default function AgendamentosPage() {
   };
 
   const handleGeneratePDF = async () => {
-    if (filtered.length === 0) {
-      toast.error("Nenhum agendamento para exportar.");
-      return;
-    }
+    if (filtered.length === 0) { toast.error("Nenhum agendamento para exportar."); return; }
     setIsGeneratingPDF(true);
     try {
       await generateAgendamentosPDF(filtered);
@@ -193,6 +175,11 @@ export default function AgendamentosPage() {
     } finally {
       setIsGeneratingPDF(false);
     }
+  };
+
+  const handleOpenReagendamento = (ag: Agendamento) => {
+    setReagendamentoTarget(ag);
+    setReagendamentoOpen(true);
   };
 
   return (
@@ -215,7 +202,7 @@ export default function AgendamentosPage() {
             {isGeneratingPDF ? (
               <><Loader2 className="w-4 h-4 animate-spin" />Gerando...</>
             ) : (
-              <><FileDown className="w-4 h-4" />Gerar relatório de agendamentos</>
+              <><FileDown className="w-4 h-4" />Gerar relatório</>
             )}
           </Button>
           <Button onClick={() => setFormOpen(true)} className="w-full sm:w-auto">
@@ -225,132 +212,188 @@ export default function AgendamentosPage() {
         </div>
       </div>
 
-      {/* Filter */}
-      <div className="flex items-center gap-3">
-        <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {statusFilter !== "all" && (
-          <p className="text-xs text-muted-foreground">
-            O relatório exportará apenas os <strong className="text-foreground">{filtered.length}</strong> agendamentos visíveis.
-          </p>
-        )}
-      </div>
+      {/* Filtros + Toggle de visualização */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-52">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {statusFilter !== "all" && (
+            <p className="text-xs text-muted-foreground">
+              <strong className="text-foreground">{filtered.length}</strong> agendamento{filtered.length !== 1 ? "s" : ""}
+            </p>
+          )}
+        </div>
 
-      {/* Table */}
-      <div className="rounded-xl border border-border bg-surface overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Data / Hora</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Serviço</TableHead>
-              <TableHead>Valor</TableHead>
-              <TableHead>Pagamento</TableHead>
-              <TableHead>Local</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              Array.from({ length: 6 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 8 }).map((_, j) => (
-                    <TableCell key={j}>
-                      <div className="h-4 rounded bg-white/5 animate-pulse w-3/4" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                  <CalendarDays className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                  Nenhum agendamento encontrado
-                </TableCell>
-              </TableRow>
-            ) : (
-              filtered.map((ag) => (
-                <TableRow key={ag.id}>
-                  <TableCell className="font-medium text-foreground text-sm whitespace-nowrap">
-                    {formatDateTime(ag.data_hora)}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {ag.clientes?.nome ?? <span className="text-muted-foreground">—</span>}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {ag.servicos?.nome ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-sm font-medium text-[#C9A84C]">
-                    {formatCurrency(ag.valor_final)}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {ag.forma_pagamento ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {ag.local}
-                  </TableCell>
-                  <TableCell>
-                    <StatusSelector agendamento={ag} onUpdated={load} />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => {
-                          setEditingAgendamento(ag);
-                          setFormOpen(true);
-                        }}
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Remover agendamento?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              O agendamento de{" "}
-                              <strong className="text-foreground">
-                                {ag.clientes?.nome ?? "cliente desconhecido"}
-                              </strong>{" "}
-                              será permanentemente removido.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(ag.id)}>
-                              Remover
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+        {/* Toggle lista / calendário */}
+        <div className="flex items-center gap-1 p-1 rounded-lg bg-surface border border-border">
+          <button
+            onClick={() => setViewMode("lista")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+              viewMode === "lista"
+                ? "bg-[#C9A84C] text-[#0A0A0A]"
+                : "text-muted-foreground hover:text-foreground"
             )}
-          </TableBody>
-        </Table>
+          >
+            <List className="w-3.5 h-3.5" />
+            Lista
+          </button>
+          <button
+            onClick={() => setViewMode("calendario")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+              viewMode === "calendario"
+                ? "bg-[#C9A84C] text-[#0A0A0A]"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <CalendarRange className="w-3.5 h-3.5" />
+            Calendário
+          </button>
+        </div>
       </div>
 
+      {/* ── View: Calendário ── */}
+      {viewMode === "calendario" && (
+        <CalendarioSemanal
+          agendamentos={filtered}
+          onClickAgendamento={(ag) => {
+            setEditingAgendamento(ag);
+            setFormOpen(true);
+          }}
+        />
+      )}
+
+      {/* ── View: Lista ── */}
+      {viewMode === "lista" && (
+        <div className="rounded-xl border border-border bg-surface overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data / Hora</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Serviço</TableHead>
+                <TableHead>Valor</TableHead>
+                <TableHead>Pagamento</TableHead>
+                <TableHead>Local</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <TableRow key={i}>
+                    {Array.from({ length: 8 }).map((_, j) => (
+                      <TableCell key={j}>
+                        <div className="h-4 rounded bg-white/5 animate-pulse w-3/4" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                    <CalendarDays className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    Nenhum agendamento encontrado
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filtered.map((ag) => (
+                  <TableRow key={ag.id}>
+                    <TableCell className="font-medium text-foreground text-sm whitespace-nowrap">
+                      {formatDateTime(ag.data_hora)}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {ag.clientes?.nome ?? <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {ag.servicos?.nome ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-sm font-medium text-[#C9A84C]">
+                      {formatCurrency(ag.valor_final)}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {ag.forma_pagamento ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {ag.local}
+                    </TableCell>
+                    <TableCell>
+                      <StatusSelector agendamento={ag} onUpdated={load} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {/* Reagendar */}
+                        {!["Concluído", "Cancelado", "Não Compareceu"].includes(ag.status) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-[#C9A84C] hover:text-[#C9A84C] hover:bg-[#C9A84C]/10"
+                            title="Reagendar"
+                            onClick={() => handleOpenReagendamento(ag)}
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                        {/* Editar */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => {
+                            setEditingAgendamento(ag);
+                            setFormOpen(true);
+                          }}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        {/* Excluir */}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remover agendamento?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                O agendamento de{" "}
+                                <strong className="text-foreground">
+                                  {ag.clientes?.nome ?? "cliente desconhecido"}
+                                </strong>{" "}
+                                será permanentemente removido.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDelete(ag.id)}>
+                                Remover
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {/* Modais */}
       <AgendamentoForm
         open={formOpen}
         onClose={() => {
@@ -359,6 +402,17 @@ export default function AgendamentosPage() {
           load();
         }}
         agendamento={editingAgendamento}
+      />
+
+      <ReagendamentoModal
+        open={reagendamentoOpen}
+        onClose={() => {
+          setReagendamentoOpen(false);
+          setReagendamentoTarget(null);
+          load();
+        }}
+        agendamento={reagendamentoTarget}
+        profissionalId={profissionalId ?? ""}
       />
     </div>
   );

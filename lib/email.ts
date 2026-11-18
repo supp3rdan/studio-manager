@@ -79,6 +79,116 @@ async function sendResendEmail(params: {
   }
 }
 
+// ── Params para cancelamento ──────────────────────────────────────────────────
+interface EmailCancelamentoParams {
+  clienteNome: string;
+  clienteEmail?: string | null;
+  clienteWhatsapp?: string | null;
+  profissionalNome: string;
+  profissionalEmail?: string | null;
+  profissionalWhatsapp?: string | null;
+  nomeStudio?: string | null;
+  servicoNome: string;
+  dataHora: string;
+  local: string;
+}
+
+export async function notificarCancelamento(params: EmailCancelamentoParams): Promise<void> {
+  const studioOuProfissional = params.nomeStudio || params.profissionalNome || "Studio";
+  const dataFormatada = formatData(params.dataHora);
+
+  // ── E-mail para o cliente ──
+  if (params.clienteEmail) {
+    const html = `
+      <div style="font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #0A0A0A; color: #FFFFFF; max-width: 600px; margin: 0 auto; padding: 32px 24px; border-radius: 16px; border: 1px solid #262626;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #C9A84C; font-size: 24px; margin: 0;">Studio Manager</h1>
+          <p style="color: #A3A3A3; font-size: 14px; margin-top: 4px;">Agendamento Cancelado</p>
+        </div>
+        <div style="background-color: #171717; border: 1px solid #2E2E2E; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+          <h2 style="color: #FFFFFF; font-size: 18px; margin-top: 0; margin-bottom: 16px;">Olá, ${params.clienteNome}!</h2>
+          <p style="color: #D4D4D4; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+            Seu agendamento em <strong>${studioOuProfissional}</strong> foi cancelado com sucesso.
+          </p>
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #E5E5E5;">
+            <tr>
+              <td style="padding: 8px 0; color: #A3A3A3;">Procedimento:</td>
+              <td style="padding: 8px 0; font-weight: bold; text-align: right; color: #C9A84C;">${params.servicoNome}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #A3A3A3;">Data e Horário:</td>
+              <td style="padding: 8px 0; font-weight: bold; text-align: right;">${dataFormatada}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #A3A3A3;">Local:</td>
+              <td style="padding: 8px 0; text-align: right;">${params.local}</td>
+            </tr>
+          </table>
+        </div>
+        ${params.profissionalWhatsapp
+          ? `<div style="text-align: center; margin-bottom: 24px;">
+              <p style="font-size: 13px; color: #A3A3A3; margin-bottom: 8px;">Quer reagendar? Fale com o profissional:</p>
+              <a href="https://wa.me/${params.profissionalWhatsapp.replace(/\D/g, "")}" style="display: inline-block; background-color: #25D366; color: #000; font-weight: bold; font-size: 13px; text-decoration: none; padding: 10px 20px; border-radius: 8px;">Conversar no WhatsApp</a>
+            </div>`
+          : ""}
+        <p style="text-align: center; font-size: 12px; color: #737373; margin: 0;">Studio Manager · Gestão de Estúdio de Beleza</p>
+      </div>
+    `;
+    await sendResendEmail({
+      to: params.clienteEmail,
+      subject: `❌ Agendamento Cancelado — ${studioOuProfissional}`,
+      html,
+    });
+  }
+
+  // ── E-mail para o profissional ──
+  if (params.profissionalEmail) {
+    const html = `
+      <div style="font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #0A0A0A; color: #FFFFFF; max-width: 600px; margin: 0 auto; padding: 32px 24px; border-radius: 16px; border: 1px solid #262626;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #C9A84C; font-size: 24px; margin: 0;">Studio Manager</h1>
+          <p style="color: #A3A3A3; font-size: 14px; margin-top: 4px;">Agendamento Cancelado pelo Cliente</p>
+        </div>
+        <div style="background-color: #171717; border: 1px solid #2E2E2E; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+          <h2 style="color: #FFFFFF; font-size: 18px; margin-top: 0; margin-bottom: 16px;">Olá, ${params.profissionalNome}!</h2>
+          <p style="color: #D4D4D4; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+            O cliente <strong>${params.clienteNome}</strong> cancelou o agendamento abaixo. O horário está disponível novamente na sua agenda.
+          </p>
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #E5E5E5;">
+            <tr>
+              <td style="padding: 8px 0; color: #A3A3A3;">Cliente:</td>
+              <td style="padding: 8px 0; font-weight: bold; text-align: right;">${params.clienteNome}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #A3A3A3;">Procedimento:</td>
+              <td style="padding: 8px 0; font-weight: bold; text-align: right; color: #C9A84C;">${params.servicoNome}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #A3A3A3;">Data e Horário:</td>
+              <td style="padding: 8px 0; font-weight: bold; text-align: right;">${dataFormatada}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #A3A3A3;">Local:</td>
+              <td style="padding: 8px 0; text-align: right;">${params.local}</td>
+            </tr>
+          </table>
+        </div>
+        ${params.clienteWhatsapp
+          ? `<div style="text-align: center; margin-bottom: 24px;">
+              <a href="https://wa.me/${params.clienteWhatsapp.replace(/\D/g, "")}" style="display: inline-block; background-color: #25D366; color: #000; font-weight: bold; font-size: 13px; text-decoration: none; padding: 10px 20px; border-radius: 8px;">Falar com o Cliente no WhatsApp</a>
+            </div>`
+          : ""}
+        <p style="text-align: center; font-size: 12px; color: #737373; margin: 0;">Studio Manager · Acesse seu painel para ver a agenda atualizada.</p>
+      </div>
+    `;
+    await sendResendEmail({
+      to: params.profissionalEmail,
+      subject: `⚠️ Agendamento Cancelado — ${params.clienteNome}`,
+      html,
+    });
+  }
+}
+
 export async function notificarAgendamento(params: EmailAgendamentoParams): Promise<void> {
   const studioOuProfissional = params.nomeStudio || params.profissionalNome || "Studio";
   const dataFormatada = formatData(params.dataHora);
