@@ -6,6 +6,27 @@ Todas as mudanças significativas do projeto são documentadas aqui.
 
 ---
 
+## [0.10.0] — Novembro 2026 — Cancelamento pelo cliente, reagendamento, calendário semanal e e-mail de cancelamento
+
+### Migration 010 — `010_cancelamento_cliente_e_reagendamento.sql`
+
+> ⚠️ **Execute manualmente no SQL Editor do Supabase antes de usar as features de cancelamento e reagendamento.**
+
+#### Adicionado
+- **RPC `cancelar_agendamento_cliente(ag_id, cliente_user_id)`** (SECURITY DEFINER) — cancela agendamento do próprio cliente; valida que o agendamento pertence ao cliente, que o status é Agendado/Confirmado e que faltam mais de 2h para o horário. Libera o slot automaticamente.
+- **RPC `reagendar_agendamento(ag_id, prof_user_id, nova_data_hora)`** (SECURITY DEFINER) — permite ao profissional alterar data/hora de um agendamento existente mantendo todos os outros dados. Bloqueia reagendamento de Concluído/Cancelado/Não Compareceu.
+- **Botão "Cancelar" na tela do cliente** (`/cliente/agendamentos`) — aparece apenas para agendamentos Agendado/Confirmado com mais de 2h de antecedência. AlertDialog de confirmação com detalhes do agendamento. Exibe aviso para contato via WhatsApp quando dentro da janela de 2h.
+- **Banner de política de cancelamento** no topo da tela do cliente (aviso gold sobre a regra de 2h).
+- **Modal de Reagendamento** (`ReagendamentoModal`) — botão Reagendar (ícone RefreshCw) em cada agendamento elegível na tela do profissional. Carrega slots disponíveis da data selecionada. Atualiza o agendamento sem perder serviço, cliente ou valor.
+- **Vista Calendário Semanal** (`CalendarioSemanal`) — toggle Lista/Calendário no header de `/agendamentos`. Grid 7 dias × 15h (07h–22h) com agendamentos posicionados no horário certo e coloridos por status. Navegação prev/next semana.
+- **`notificarCancelamento`** em `lib/email.ts` — envia e-mail para cliente (confirmação de cancelamento + botão WhatsApp da profissional) e para profissional (aviso de cancelamento + botão WhatsApp do cliente). Usa Resend se `RESEND_API_KEY` estiver configurada; faz mock estruturado no console caso contrário.
+- **API `POST /api/agendamentos/[id]/cancelar`** — endpoint autenticado que valida sessão, chama RPC e dispara notificação de cancelamento em background.
+
+#### Modificado
+- `lib/queries/perfis.ts` → `getAgendamentosDoCliente` agora inclui `email` no select de perfis de profissionais (necessário para notificação de cancelamento).
+
+---
+
 ## [0.9.0] — Novembro 2024 — Login obrigatório e horários mais limpos
 
 ### Migration 009 — `009_agendamentos_ocupados_e_login_obrigatorio.sql`
