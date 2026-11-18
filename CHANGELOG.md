@@ -23,7 +23,7 @@ Todas as mudanças significativas do projeto são documentadas aqui.
 - **Next.js 14.2.16 → 14.2.35** (correções de segurança, incluindo bypass de middleware).
 
 #### Otimização e manutenção
-- Nova RPC `horarios_disponiveis_publico` como **fonte única** do cálculo de horários livres; `get_horarios_disponiveis` passa a delegar para ela. A API `/api/horarios-disponiveis` só chama a RPC (com fallback temporário para o cálculo antigo enquanto a migration 012 não for aplicada).
+- Nova RPC `horarios_disponiveis_publico` como **fonte única** do cálculo de horários livres; `get_horarios_disponiveis` passa a delegar para ela. A API `/api/horarios-disponiveis` só chama a RPC (o fallback temporário para o cálculo antigo foi removido após a migration 012 ser aplicada em produção).
 - Corrige `get_horarios_disponiveis`: as migrations 006 e 011 falhavam com *"cannot change return type of existing function"* quando a versão da 004 existia; a 012 remove todas as versões antes de recriar.
 - Horários passados são filtrados no servidor (fuso de Manaus); o front deixou de filtrar pelo fuso do aparelho.
 - Em caso de erro, o front não mostra mais a grade inteira como "livre".

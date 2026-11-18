@@ -83,7 +83,7 @@ dia_semana INTEGER | null (0=Dom...6=Sáb, quando recorrente)
 | `cancelar_agendamento_cliente` | `ag_id, _cliente_user_id` | auth | Cliente cancela (>2h de antecedência) |
 | `reagendar_agendamento` | `ag_id, _prof_user_id, nova_data_hora` | auth | Profissional reagenda (sem sobrepor outro agendamento) |
 | `get_servicos_do_profissional` | `user_id UUID` | anon, auth | Cliente lê serviços de um profissional |
-| `get_agendamentos_ocupados` | `prof_id, inicio, fim TIMESTAMPTZ` | anon, auth | Legado (só fallback de transição da API) |
+| `get_agendamentos_ocupados` | `prof_id, inicio, fim TIMESTAMPTZ` | anon, auth | Legado, não usado pelo código (pode ser removido numa migration futura) |
 | `handle_new_user()` | — | trigger | Cria perfil no cadastro |
 
 **ERRCODEs das RPCs → HTTP** (mapeados em `lib/api-errors.ts`): `28000`→401 · `42501`→403 · `P0002`→404 · `23P01`→409 (conflito de horário) · `22023`/`P0001`→400.
@@ -142,7 +142,7 @@ lib/queries/indisponibilidades.ts → CRUD bloqueios, getHorariosDisponiveis (la
 ### Infra / helpers
 ```
 lib/supabase/url.ts     → getSupabaseUrl(), getSupabaseAnonKey() (únicos pontos de leitura das env vars)
-lib/api-errors.ts       → rpcErrorResponse(), validationErrorResponse(), isMissingFunction()
+lib/api-errors.ts       → rpcErrorResponse(), validationErrorResponse()
 lib/email.ts            → notificarAgendamento/Cancelamento (Resend); escapeHtml() em todo dado de usuário
 .github/workflows/ci.yml → lint + tsc + build em PR/push na main
 ```
@@ -265,7 +265,7 @@ Build exige `NEXT_PUBLIC_SUPABASE_URL`/`ANON_KEY` (valores fictícios servem) e 
 | 012 | `012_seguranca_agendamentos.sql` | Conflito de horário no banco c/ lock; RPCs c/ `auth.uid()`; remove RLS públicas; `horarios_disponiveis_publico`; índices |
 
 > 006 e 011 falhavam silenciosamente em `get_horarios_disponiveis` (tipo de retorno); a 012 corrige.
-> Após confirmar que a 012 foi aplicada em produção: remover `calcularHorariosLegado` de `app/api/horarios-disponiveis/route.ts` (marcado com TODO).
+> 012 aplicada em produção (18/11/2026); fallback legado da API de horários removido.
 
 **Próxima migration:** `013_...sql`
 

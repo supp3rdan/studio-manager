@@ -33,8 +33,3 @@ export function validationErrorResponse(error: ZodError) {
     { status: 400 }
   );
 }
-
-/** PostgREST: função inexistente no schema cache (migration ainda não aplicada). */
-export function isMissingFunction(error: { code?: string } | null | undefined) {
-  return !!error && (error.code === "PGRST202" || error.code === "42883");
-}
