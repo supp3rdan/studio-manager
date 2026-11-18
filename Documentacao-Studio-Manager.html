@@ -1,521 +1,762 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Documentação do Projeto — Studio Manager</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Studio Manager — Documentação</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
-
-    @page {
-      size: A4;
-      margin: 18mm 16mm 18mm 16mm;
-      @bottom-right {
-        content: counter(page);
-        font-family: 'Plus Jakarta Sans', sans-serif;
-        font-size: 9pt;
-        color: #71717a;
-      }
+    :root {
+      --gold: #C9A84C;
+      --gold-light: #e8c97a;
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --surface2: #242424;
+      --surface3: #2e2e2e;
+      --text: #f0f0f0;
+      --text-muted: #888;
+      --border: #333;
+      --success: #4ade80;
+      --info: #60a5fa;
+      --warning: #fbbf24;
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      color: #18181b;
-      background-color: #ffffff;
-      line-height: 1.55;
-      font-size: 10pt;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
     }
 
-    /* Header Banner */
-    .header-banner {
-      background: linear-gradient(135deg, #09090b 0%, #18181b 100%);
-      color: #fafafa;
-      padding: 24px 28px;
-      border-radius: 12px;
-      margin-bottom: 24px;
-      border-left: 6px solid #C9A84C;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    /* ── HEADER ── */
+    header {
+      background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%);
+      border-bottom: 2px solid var(--gold);
+      padding: 3rem 2rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
     }
-
-    .header-title {
-      font-size: 20pt;
+    header::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(ellipse at center, rgba(201,168,76,0.08) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    header h1 {
+      font-size: 3rem;
       font-weight: 800;
-      letter-spacing: -0.5px;
-      color: #ffffff;
+      background: linear-gradient(135deg, var(--gold), var(--gold-light));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
     }
-
-    .header-title span {
-      color: #C9A84C;
-    }
-
-    .header-subtitle {
-      font-size: 10pt;
-      color: #a1a1aa;
-      margin-top: 4px;
-      max-width: 520px;
-    }
-
-    .header-badge {
-      background: rgba(201, 168, 76, 0.15);
-      border: 1px solid rgba(201, 168, 76, 0.35);
-      color: #E8C97A;
-      padding: 6px 14px;
-      border-radius: 9999px;
-      font-size: 8.5pt;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      white-space: nowrap;
-    }
-
-    h2 {
-      font-size: 13pt;
-      font-weight: 700;
-      color: #09090b;
-      margin-top: 22px;
-      margin-bottom: 10px;
-      padding-bottom: 5px;
-      border-bottom: 1.5px solid #e4e4e7;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      page-break-after: avoid;
-    }
-
-    h2 .num {
-      background: #C9A84C;
-      color: #09090b;
-      width: 22px;
-      height: 22px;
-      border-radius: 6px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 9pt;
-      font-weight: 800;
-    }
-
-    h3 {
-      font-size: 10.5pt;
-      font-weight: 700;
-      color: #27272a;
-      margin-top: 14px;
-      margin-bottom: 6px;
-      page-break-after: avoid;
-    }
-
-    p {
-      margin-bottom: 8px;
-      color: #3f3f46;
-      font-size: 9.5pt;
-    }
-
-    ul, ol {
-      margin-left: 20px;
-      margin-bottom: 10px;
-      color: #3f3f46;
-      font-size: 9.5pt;
-    }
-
-    li {
-      margin-bottom: 4px;
-    }
-
-    /* Callout Card */
-    .callout {
-      background: #fafafa;
-      border: 1px solid #e4e4e7;
-      border-left: 4px solid #C9A84C;
-      padding: 12px 16px;
-      border-radius: 8px;
-      margin: 12px 0;
-      page-break-inside: avoid;
-    }
-
-    .callout-title {
-      font-weight: 700;
-      color: #09090b;
-      font-size: 9.5pt;
-      margin-bottom: 4px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    /* Code Blocks */
-    pre, code {
-      font-family: 'JetBrains Mono', Consolas, Monaco, monospace;
-    }
-
-    code {
-      background-color: #f4f4f5;
-      color: #09090b;
-      padding: 2px 5px;
-      border-radius: 4px;
-      font-size: 8.5pt;
-      border: 1px solid #e4e4e7;
-    }
-
-    pre {
-      background: #18181b;
-      color: #fafafa;
-      padding: 12px 14px;
-      border-radius: 8px;
-      font-size: 8.5pt;
-      line-height: 1.45;
-      margin: 8px 0 12px 0;
-      overflow-x: auto;
-      page-break-inside: avoid;
-      border-left: 3px solid #C9A84C;
-    }
-
-    pre code {
-      background: transparent;
-      color: inherit;
-      padding: 0;
-      border: none;
-      font-size: 8.5pt;
-    }
-
-    /* Tables */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 12px 0 16px 0;
-      font-size: 9pt;
-      page-break-inside: avoid;
-    }
-
-    th {
-      background-color: #f4f4f5;
-      color: #09090b;
-      font-weight: 700;
-      text-align: left;
-      padding: 8px 10px;
-      border: 1px solid #e4e4e7;
-      font-size: 8.5pt;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-    }
-
-    td {
-      padding: 7px 10px;
-      border: 1px solid #e4e4e7;
-      color: #3f3f46;
-      vertical-align: top;
-    }
-
-    tr:nth-child(even) td {
-      background-color: #fafafa;
-    }
-
+    header p { color: var(--text-muted); font-size: 1.1rem; }
+    .badges { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; margin-top: 1rem; }
     .badge {
-      display: inline-block;
-      padding: 2px 7px;
-      border-radius: 4px;
-      font-size: 8pt;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
       font-weight: 600;
-      white-space: nowrap;
+      border: 1px solid;
     }
+    .badge-gold { color: var(--gold); border-color: var(--gold); }
+    .badge-green { color: var(--success); border-color: var(--success); }
+    .badge-blue { color: var(--info); border-color: var(--info); }
 
-    .badge-gold {
-      background-color: rgba(201, 168, 76, 0.15);
-      color: #856404;
-      border: 1px solid rgba(201, 168, 76, 0.3);
-    }
-
-    .badge-green {
-      background-color: #ecfdf5;
-      color: #065f46;
-      border: 1px solid #a7f3d0;
-    }
-
-    .badge-gray {
-      background-color: #f4f4f5;
-      color: #52525b;
-      border: 1px solid #e4e4e7;
-    }
-
-    .grid-two {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin: 10px 0;
-      page-break-inside: avoid;
-    }
-
-    .feature-box {
-      border: 1px solid #e4e4e7;
-      background: #fafafa;
-      padding: 10px 14px;
-      border-radius: 8px;
-    }
-
-    .feature-box strong {
-      display: block;
-      color: #09090b;
-      font-size: 9.5pt;
-      margin-bottom: 2px;
-    }
-
-    .feature-box p {
-      font-size: 8.5pt;
-      color: #52525b;
-      margin-bottom: 0;
-    }
-
-    .page-break {
-      page-break-before: always;
-    }
-
-    .footer-note {
-      margin-top: 24px;
-      padding-top: 12px;
-      border-top: 1px solid #e4e4e7;
-      font-size: 8pt;
-      color: #71717a;
+    /* ── NAV ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
       display: flex;
-      justify-content: space-between;
-      page-break-inside: avoid;
+      gap: 0;
+      overflow-x: auto;
+    }
+    nav a {
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 1rem 1.25rem;
+      white-space: nowrap;
+      font-size: 0.875rem;
+      font-weight: 500;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    nav a:hover { color: var(--gold); border-bottom-color: var(--gold); }
+
+    /* ── LAYOUT ── */
+    .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+
+    /* ── SECTIONS ── */
+    section { margin-bottom: 4rem; }
+    h2 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--gold);
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.5rem 0 0.75rem;
+    }
+
+    /* ── CARDS ── */
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: var(--gold); }
+    .card-icon { font-size: 1.75rem; margin-bottom: 0.5rem; }
+    .card h3 { margin: 0.25rem 0; color: var(--gold-light); }
+    .card p { color: var(--text-muted); font-size: 0.875rem; }
+
+    /* ── TABLE ── */
+    .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      background: var(--surface2);
+      color: var(--gold);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+    code {
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      background: var(--surface3);
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      color: var(--gold-light);
+    }
+
+    /* ── CODE BLOCK ── */
+    pre {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      overflow-x: auto;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      color: #cdd6f4;
+      margin: 1rem 0;
+    }
+    pre .kw { color: #cba6f7; }
+    pre .str { color: #a6e3a1; }
+    pre .comment { color: #6c7086; font-style: italic; }
+    pre .num { color: #fab387; }
+
+    /* ── FLOW DIAGRAM ── */
+    .flow {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      padding: 1.25rem;
+      background: var(--surface);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      margin-bottom: 1rem;
+    }
+    .flow-box {
+      background: var(--surface2);
+      border: 1px solid var(--gold);
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+      text-align: center;
+      min-width: 110px;
+    }
+    .flow-box.highlight { background: rgba(201,168,76,0.15); }
+    .flow-arrow { color: var(--gold); font-size: 1.25rem; }
+    .flow-diamond {
+      background: var(--surface2);
+      border: 1px solid var(--warning);
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+      color: var(--warning);
+      text-align: center;
+    }
+
+    /* ── PILL/TAG ── */
+    .tag {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin: 0.1rem;
+    }
+    .tag-green { background: rgba(74,222,128,0.15); color: var(--success); }
+    .tag-blue { background: rgba(96,165,250,0.15); color: var(--info); }
+    .tag-gold { background: rgba(201,168,76,0.15); color: var(--gold); }
+    .tag-red { background: rgba(248,113,113,0.15); color: #f87171; }
+
+    /* ── TIMELINE ── */
+    .timeline { position: relative; padding-left: 2rem; }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 0.65rem;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+    .timeline-item { position: relative; margin-bottom: 1.5rem; }
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -1.9rem;
+      top: 0.35rem;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--gold);
+      border: 2px solid var(--bg);
+    }
+    .timeline-item h4 { color: var(--gold-light); font-size: 0.95rem; margin-bottom: 0.25rem; }
+    .timeline-item p { color: var(--text-muted); font-size: 0.85rem; }
+
+    /* ── INFO BOX ── */
+    .info-box {
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+    }
+    .info-box.info { background: rgba(96,165,250,0.1); border: 1px solid rgba(96,165,250,0.3); }
+    .info-box.warning { background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); }
+    .info-box.success { background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.3); }
+    .info-box-icon { font-size: 1.25rem; flex-shrink: 0; }
+    .info-box-text { font-size: 0.9rem; }
+
+    /* ── ENV TABLE ── */
+    .env-row { display: flex; gap: 1rem; align-items: center; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
+    .env-row:last-child { border-bottom: none; }
+    .env-key { font-family: monospace; color: var(--gold-light); font-size: 0.85rem; min-width: 280px; }
+    .env-desc { color: var(--text-muted); font-size: 0.85rem; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+    footer a { color: var(--gold); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      header h1 { font-size: 2rem; }
+      .card-grid { grid-template-columns: 1fr; }
+      .flow { flex-direction: column; align-items: flex-start; }
     }
   </style>
 </head>
 <body>
 
-  <!-- Header Banner -->
-  <div class="header-banner">
-    <div>
-      <div class="header-title">Studio <span>Manager</span> 🌟</div>
-      <div class="header-subtitle">
-        Documentação Técnica e Operacional — Sistema de Gestão para Estúdios de Beleza e Estética
+<!-- HEADER -->
+<header>
+  <h1>💅 Studio Manager</h1>
+  <p>Sistema completo de agendamento para profissionais de beleza</p>
+  <div class="badges">
+    <span class="badge badge-gold">Next.js 14</span>
+    <span class="badge badge-green">Supabase</span>
+    <span class="badge badge-blue">TypeScript</span>
+    <span class="badge badge-gold">Vercel</span>
+    <span class="badge badge-green">PWA</span>
+  </div>
+</header>
+
+<!-- NAV -->
+<nav>
+  <a href="#visao-geral">Visão Geral</a>
+  <a href="#funcionalidades">Funcionalidades</a>
+  <a href="#stack">Stack</a>
+  <a href="#rotas">Rotas</a>
+  <a href="#banco">Banco de Dados</a>
+  <a href="#seguranca">Segurança</a>
+  <a href="#fluxos">Fluxos</a>
+  <a href="#setup">Configuração</a>
+  <a href="#migrations">Migrations</a>
+</nav>
+
+<div class="container">
+
+  <!-- VISÃO GERAL -->
+  <section id="visao-geral">
+    <h2>🎯 Visão Geral</h2>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">👩‍💼</div>
+        <h3>Para o Profissional</h3>
+        <p>Dashboard completo: agenda, clientes, serviços, disponibilidade e financeiro.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">💁</div>
+        <h3>Para o Cliente</h3>
+        <p>Portal público: busca o profissional, escolhe serviço e agenda online sem complicação.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔒</div>
+        <h3>Seguro por Design</h3>
+        <p>RLS no banco garante isolamento de dados. RPCs SECURITY DEFINER para leitura pública controlada.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📱</div>
+        <h3>PWA</h3>
+        <p>Funciona como app no celular. Instale pelo navegador, sem App Store.</p>
       </div>
     </div>
-    <div class="header-badge">Arquitetura & Especificação</div>
-  </div>
 
-  <!-- 1. Como Executar o Projeto Quando Instalado -->
-  <h2><span class="num">1</span> Como Executar o Projeto Quando Instalado</h2>
-  <p>Siga os passos abaixo para configurar o ambiente e executar o sistema localmente em modo de desenvolvimento ou produção.</p>
+    <div class="info-box success" style="margin-top: 1.5rem;">
+      <span class="info-box-icon">🔗</span>
+      <div class="info-box-text">
+        <strong>Acesse em produção:</strong> <a href="https://studio-manager-three.vercel.app" style="color: var(--gold);" target="_blank">studio-manager-three.vercel.app</a><br/>
+        <strong>Repositório:</strong> <a href="https://github.com/supp3rdan/studio-manager" style="color: var(--gold);" target="_blank">github.com/supp3rdan/studio-manager</a>
+      </div>
+    </div>
+  </section>
 
-  <div class="callout">
-    <div class="callout-title">📋 Pré-requisitos</div>
-    <ul>
-      <li><strong>Node.js</strong>: Versão 18.x ou superior (testado e certificado no Node.js v24).</li>
-      <li><strong>Gerenciador de Pacotes</strong>: <code>npm</code> (incluso no Node), <code>yarn</code> ou <code>pnpm</code>.</li>
-      <li><strong>Projeto Supabase</strong>: Instância PostgreSQL ativa criada no <a href="https://supabase.com" style="color: #856404; text-decoration: none;">supabase.com</a>.</li>
-    </ul>
-  </div>
+  <!-- FUNCIONALIDADES -->
+  <section id="funcionalidades">
+    <h2>✨ Funcionalidades</h2>
 
-  <h3>Passo 1: Variáveis de Ambiente</h3>
-  <p>Na pasta raiz do projeto (<code>studio-manager</code>), crie o arquivo <code>.env.local</code> duplicando o modelo fornecido:</p>
-  <pre><code>cp .env.example .env.local</code></pre>
-  <p>Edite o arquivo <code>.env.local</code> preenchendo as chaves do seu projeto Supabase (localizadas em <strong>Project Settings → API</strong>):</p>
-  <pre><code>NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto-id.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-anon-key-aqui</code></pre>
+    <h3>👩‍💼 Portal do Profissional</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Área</th><th>O que faz</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Dashboard</strong></td><td>Faturamento realizado e previsto, agendamentos pendentes, gráficos mensais e por método de pagamento</td></tr>
+          <tr><td><strong>Agendamentos</strong></td><td>Criar, editar, confirmar, cancelar, marcar como concluído ou não comparecimento; exportar relatório PDF</td></tr>
+          <tr><td><strong>Clientes</strong></td><td>Cadastro com nome e WhatsApp, histórico de atendimentos, busca por nome</td></tr>
+          <tr><td><strong>Serviços</strong></td><td>CRUD por categoria (Cílios, Sobrancelhas, Depilação); duração individual por serviço; preço e tipo</td></tr>
+          <tr><td><strong>Disponibilidade</strong></td><td>Bloquear dia inteiro ou intervalo de horário; opção recorrente por dia da semana</td></tr>
+          <tr><td><strong>Preços Promocionais</strong></td><td>Cadastrar preço especial por serviço; ativar/desativar a qualquer momento</td></tr>
+          <tr><td><strong>Perfil do Studio</strong></td><td>Nome do studio, WhatsApp, dados de contato; código único compartilhável com clientes</td></tr>
+          <tr><td><strong>Pagamento Misto</strong></td><td>Registrar atendimento com combinação de formas de pagamento (ex: Pix + Dinheiro)</td></tr>
+        </tbody>
+      </table>
+    </div>
 
-  <h3>Passo 2: Configuração do Banco de Dados no Supabase</h3>
-  <ol>
-    <li>Acesse o painel do seu projeto no <strong>Supabase</strong> e clique na aba <strong>SQL Editor</strong>.</li>
-    <li>Abra o arquivo <code>supabase/migrations/001_initial_schema.sql</code> localizado no projeto.</li>
-    <li>Copie todo o conteúdo SQL, cole no editor do Supabase e clique em <strong>Run</strong>.</li>
-  </ol>
-  <p style="font-size: 8.5pt; color: #71717a;">
-    <em>Este script provisionará os ENUMs de categorias e status, as tabelas <code>clientes</code>, <code>servicos</code> e <code>agendamentos</code>, índices relacionais e as políticas de segurança Row Level Security (RLS).</em>
+    <h3>💁 Portal do Cliente</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Área</th><th>O que faz</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Buscar Profissional</strong></td><td>Código de 4 dígitos em <code>/buscar</code></td></tr>
+          <tr><td><strong>Perfil Público</strong></td><td>Ver serviços, preços (com promoção quando ativa), categorias</td></tr>
+          <tr><td><strong>Agendamento</strong></td><td>Escolher serviço → data → horário disponível → forma de pagamento; login obrigatório</td></tr>
+          <tr><td><strong>Horários</strong></td><td>Apenas horários livres aparecem (07h–22h); ocupados e bloqueados são ocultos</td></tr>
+          <tr><td><strong>Histórico</strong></td><td>Ver todos os seus agendamentos em <code>/cliente/agendamentos</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- STACK -->
+  <section id="stack">
+    <h2>🛠️ Stack Tecnológica</h2>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <h3>Next.js 14</h3>
+        <p>App Router, Server Components, Route Handlers, Middleware. TypeScript 5.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🟩</div>
+        <h3>Supabase</h3>
+        <p>PostgreSQL com RLS, Auth (JWT + email), storage. RPCs SECURITY DEFINER.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🎨</div>
+        <h3>UI</h3>
+        <p>Tailwind CSS + Shadcn/ui + Radix UI. Tema Dark & Gold. Mobile-first.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📊</div>
+        <h3>Recharts</h3>
+        <p>Gráficos de faturamento mensal e distribuição por método de pagamento.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📋</div>
+        <h3>React Hook Form + Zod</h3>
+        <p>Validação de formulários tipada e eficiente em todos os módulos.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📄</div>
+        <h3>jsPDF</h3>
+        <p>Exportação de relatório de agendamentos em PDF diretamente no browser.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROTAS -->
+  <section id="rotas">
+    <h2>🗂️ Mapa de Rotas</h2>
+
+    <h3>🔓 Rotas Públicas (sem login)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Rota</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><code>/</code></td><td>Redirect para <code>/buscar</code> ou <code>/dashboard</code></td></tr>
+          <tr><td><code>/buscar</code></td><td>Buscar profissional por código de 4 dígitos</td></tr>
+          <tr><td><code>/p/[code]</code></td><td>Perfil público do profissional + catálogo + agendamento</td></tr>
+          <tr><td><code>/login</code></td><td>Autenticação; suporta <code>?next=</code> para redirect pós-login</td></tr>
+          <tr><td><code>/register</code></td><td>Cadastro de cliente ou profissional (<code>?tipo=cliente</code>)</td></tr>
+          <tr><td><code>/recuperar-senha</code></td><td>Solicitar redefinição de senha por e-mail</td></tr>
+          <tr><td><code>/redefinir-senha</code></td><td>Formulário com token do e-mail</td></tr>
+          <tr><td><code>/email-confirmado</code></td><td>Página exibida após confirmar e-mail</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>🔐 Rotas Protegidas (login obrigatório)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Rota</th><th>Perfil</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><code>/dashboard</code></td><td><span class="tag tag-gold">Profissional</span></td><td>Métricas e gráficos financeiros</td></tr>
+          <tr><td><code>/agendamentos</code></td><td><span class="tag tag-gold">Profissional</span></td><td>Gestão completa de agendamentos</td></tr>
+          <tr><td><code>/clientes</code></td><td><span class="tag tag-gold">Profissional</span></td><td>Lista de clientes</td></tr>
+          <tr><td><code>/clientes/[id]</code></td><td><span class="tag tag-gold">Profissional</span></td><td>Detalhes e histórico do cliente</td></tr>
+          <tr><td><code>/servicos</code></td><td><span class="tag tag-gold">Profissional</span></td><td>Serviços + disponibilidade + promoções</td></tr>
+          <tr><td><code>/cliente/agendamentos</code></td><td><span class="tag tag-blue">Cliente</span></td><td>Histórico de agendamentos do cliente logado</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>🌐 API Routes</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Rota</th><th>Método</th><th>Auth</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><code>/api/agendamentos/publico</code></td><td><span class="tag tag-green">POST</span></td><td>Público</td><td>Criar agendamento via portal do cliente</td></tr>
+          <tr><td><code>/api/horarios-disponiveis</code></td><td><span class="tag tag-blue">GET</span></td><td>Público</td><td>Listar horários livres por data e profissional</td></tr>
+          <tr><td><code>/api/auth/callback</code></td><td><span class="tag tag-blue">GET</span></td><td>Público</td><td>Callback do Supabase Auth (email/OAuth)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- BANCO DE DADOS -->
+  <section id="banco">
+    <h2>🗄️ Banco de Dados</h2>
+
+    <div class="info-box info">
+      <span class="info-box-icon">ℹ️</span>
+      <div class="info-box-text">Todas as tabelas têm <strong>Row Level Security (RLS)</strong> habilitado. A regra base é: <code>auth.uid() = user_id</code>.</div>
+    </div>
+
+    <h3>Tabela: <code>perfis</code></h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Campo</th><th>Tipo</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td>UUID PK</td><td>FK para <code>auth.users</code></td></tr>
+          <tr><td><code>tipo_usuario</code></td><td>TEXT</td><td><code>'profissional'</code> ou <code>'cliente'</code></td></tr>
+          <tr><td><code>nome</code></td><td>TEXT</td><td>Nome completo</td></tr>
+          <tr><td><code>whatsapp</code></td><td>TEXT</td><td>WhatsApp de contato</td></tr>
+          <tr><td><code>nome_studio</code></td><td>TEXT</td><td>Nome do studio (só profissionais)</td></tr>
+          <tr><td><code>codigo_profissional</code></td><td>VARCHAR(4)</td><td>Código único gerado automaticamente (1000–9999)</td></tr>
+          <tr><td><code>email</code></td><td>TEXT</td><td>E-mail do usuário</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Tabela: <code>servicos</code></h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Campo</th><th>Tipo</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td>UUID PK</td><td>ID do serviço</td></tr>
+          <tr><td><code>user_id</code></td><td>UUID FK</td><td>Profissional dono do serviço</td></tr>
+          <tr><td><code>categoria</code></td><td>ENUM</td><td>Cílios / Sobrancelhas / Depilação</td></tr>
+          <tr><td><code>nome</code></td><td>TEXT</td><td>Nome do serviço</td></tr>
+          <tr><td><code>preco_base</code></td><td>NUMERIC</td><td>Preço padrão</td></tr>
+          <tr><td><code>preco_promocional</code></td><td>NUMERIC</td><td>Preço em promoção (opcional)</td></tr>
+          <tr><td><code>promocao_ativa</code></td><td>BOOLEAN</td><td>Se o preço promocional está sendo aplicado</td></tr>
+          <tr><td><code>duracao_minutos</code></td><td>INTEGER</td><td>Duração em minutos (padrão 30; Cílios/Depilação: 60)</td></tr>
+          <tr><td><code>ativo</code></td><td>BOOLEAN</td><td>Se o serviço está visível</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Tabela: <code>agendamentos</code></h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Campo</th><th>Tipo</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td>UUID PK</td><td>ID do agendamento</td></tr>
+          <tr><td><code>user_id</code></td><td>UUID FK</td><td>Profissional que recebe o atendimento</td></tr>
+          <tr><td><code>cliente_id</code></td><td>UUID FK</td><td>Cliente da carteira do profissional</td></tr>
+          <tr><td><code>cliente_user_id</code></td><td>UUID FK</td><td>Usuário autenticado que agendou (cliente)</td></tr>
+          <tr><td><code>servico_id</code></td><td>UUID FK</td><td>Serviço agendado</td></tr>
+          <tr><td><code>data_hora</code></td><td>TIMESTAMPTZ</td><td>Data e hora do atendimento</td></tr>
+          <tr><td><code>valor_final</code></td><td>NUMERIC</td><td>Valor cobrado (considera promoção)</td></tr>
+          <tr><td><code>forma_pagamento</code></td><td>TEXT</td><td>Forma(s) de pagamento (suporta combinações)</td></tr>
+          <tr><td><code>status</code></td><td>ENUM</td><td>Agendado / Confirmado / Concluído / Cancelado / Não Compareceu</td></tr>
+          <tr><td><code>local</code></td><td>ENUM</td><td>Studio / Domicílio</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Tabela: <code>indisponibilidades</code></h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Campo</th><th>Tipo</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><code>user_id</code></td><td>UUID FK</td><td>Profissional dono do bloqueio</td></tr>
+          <tr><td><code>tipo</code></td><td>TEXT</td><td><code>'dia_inteiro'</code> ou <code>'horario'</code></td></tr>
+          <tr><td><code>data_inicio</code></td><td>TIMESTAMPTZ</td><td>Início do bloqueio</td></tr>
+          <tr><td><code>data_fim</code></td><td>TIMESTAMPTZ</td><td>Fim do bloqueio (horário específico)</td></tr>
+          <tr><td><code>titulo</code></td><td>TEXT</td><td>Motivo/descrição do bloqueio</td></tr>
+          <tr><td><code>recorrente</code></td><td>BOOLEAN</td><td>Se repete toda semana</td></tr>
+          <tr><td><code>dia_semana</code></td><td>INTEGER</td><td>0=Dom, 1=Seg, ... 6=Sáb (quando recorrente)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SEGURANÇA -->
+  <section id="seguranca">
+    <h2>🔐 Segurança</h2>
+
+    <div class="info-box warning">
+      <span class="info-box-icon">⚠️</span>
+      <div class="info-box-text">Nunca exponha a <code>service_role</code> key no browser. Apenas as variáveis <code>NEXT_PUBLIC_*</code> são seguras para o client-side.</div>
+    </div>
+
+    <h3>Row Level Security (RLS)</h3>
+    <p style="color: var(--text-muted); margin-bottom: 1rem;">Cada usuário só acessa seus próprios dados. O banco impõe isso automaticamente, independente da aplicação.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Tabela</th><th>Política</th><th>Regra</th></tr></thead>
+        <tbody>
+          <tr><td><code>perfis</code></td><td>perfis_read_own</td><td><code>auth.uid() = id</code></td></tr>
+          <tr><td><code>perfis</code></td><td>perfis_public_read_profissionais</td><td><code>tipo_usuario = 'profissional'</code> (público)</td></tr>
+          <tr><td><code>servicos</code></td><td>servicos_select/insert/update/delete</td><td><code>auth.uid() = user_id</code></td></tr>
+          <tr><td><code>agendamentos</code></td><td>agendamentos_select</td><td><code>auth.uid() = user_id</code></td></tr>
+          <tr><td><code>agendamentos</code></td><td>agendamentos_select_cliente</td><td><code>auth.uid() = cliente_user_id</code></td></tr>
+          <tr><td><code>indisponibilidades</code></td><td>indisponibilidades_select/insert/update/delete</td><td><code>auth.uid() = user_id</code></td></tr>
+          <tr><td><code>indisponibilidades</code></td><td>indisponibilidades_select_publico</td><td><code>true</code> (cálculo de slots)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>RPCs SECURITY DEFINER</h3>
+    <p style="color: var(--text-muted); margin-bottom: 1rem;">Funções que rodam com privilégio elevado mas retornam apenas dados de um profissional específico — sem vazar dados de outros.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Função</th><th>Propósito</th><th>Acesso</th></tr></thead>
+        <tbody>
+          <tr><td><code>get_servicos_do_profissional(user_id)</code></td><td>Lista serviços ativos de um profissional</td><td>anon + authenticated</td></tr>
+          <tr><td><code>get_horarios_disponiveis(prof_id, data, duracao)</code></td><td>Calcula slots livres (07h–22h)</td><td>anon + authenticated</td></tr>
+          <tr><td><code>get_agendamentos_ocupados(prof_id, data)</code></td><td>Horários com agendamentos ativos</td><td>anon + authenticated</td></tr>
+          <tr><td><code>criar_agendamento_publico(...)</code></td><td>Cria agendamento + cliente com segurança</td><td>anon + authenticated</td></tr>
+          <tr><td><code>handle_new_user()</code></td><td>Cria perfil automaticamente no cadastro</td><td>trigger interno</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- FLUXOS -->
+  <section id="fluxos">
+    <h2>🔄 Fluxos Principais</h2>
+
+    <h3>Fluxo de Agendamento (Cliente)</h3>
+    <div class="flow">
+      <div class="flow-box">Cliente acessa<br/><code>/buscar</code></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box">Digita código<br/>do profissional</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box highlight">Perfil público<br/><code>/p/[code]</code></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box">Escolhe serviço</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box">Escolhe data<br/>e horário livre</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-diamond">Está logado?</div>
+    </div>
+    <div class="flow">
+      <div class="flow-box" style="border-color: #f87171; color: #f87171;">NÃO → Modal de<br/>login/cadastro</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box">Login ou<br/>cadastro rápido</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box highlight">Confirma<br/>agendamento</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="border-color: var(--success); color: var(--success);">✅ Confirmado!</div>
+    </div>
+
+    <h3 style="margin-top: 2rem;">Fluxo de Disponibilidade de Horários</h3>
+    <div class="flow">
+      <div class="flow-box">Cliente escolhe<br/>uma data</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-diamond">Dia inteiro<br/>bloqueado?</div>
+      <div class="flow-arrow">→ SIM →</div>
+      <div class="flow-box" style="color: #f87171;">Nenhum horário<br/>disponível</div>
+    </div>
+    <div class="flow">
+      <div class="flow-diamond">NÃO</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box">Gera slots<br/>07h–22h</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-diamond">Conflito com<br/>agendamento?</div>
+      <div class="flow-arrow">→ SIM →</div>
+      <div class="flow-box" style="color: var(--text-muted);">Oculta slot</div>
+    </div>
+    <div class="flow">
+      <div class="flow-diamond">NÃO</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-diamond">Conflito com<br/>indisponibilidade?</div>
+      <div class="flow-arrow">→ SIM →</div>
+      <div class="flow-box" style="color: var(--text-muted);">Oculta slot</div>
+      <div class="flow-arrow">→ NÃO →</div>
+      <div class="flow-box" style="color: var(--success);">✅ Exibe slot</div>
+    </div>
+  </section>
+
+  <!-- SETUP -->
+  <section id="setup">
+    <h2>⚙️ Configuração Local</h2>
+
+    <h3>1. Clone e instale</h3>
+    <pre>git clone https://github.com/supp3rdan/studio-manager.git
+cd studio-manager
+npm install</pre>
+
+    <h3>2. Variáveis de ambiente</h3>
+    <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Crie o arquivo <code>.env.local</code> com:</p>
+    <div class="table-wrap">
+      <div style="background: var(--surface); padding: 0.5rem 0;">
+        <div class="env-row">
+          <div class="env-key">NEXT_PUBLIC_SUPABASE_URL</div>
+          <div class="env-desc">URL do seu projeto Supabase (ex: https://xxxx.supabase.co)</div>
+        </div>
+        <div class="env-row">
+          <div class="env-key">NEXT_PUBLIC_SUPABASE_ANON_KEY</div>
+          <div class="env-desc">Chave anônima pública do Supabase</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>3. Execute as migrations no Supabase SQL Editor</h3>
+    <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Execute em ordem, uma por vez:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Arquivo</th><th>O que cria</th></tr></thead>
+        <tbody>
+          <tr><td>001</td><td><code>001_initial_schema.sql</code></td><td>Tabelas clientes, serviços, agendamentos + RLS</td></tr>
+          <tr><td>002</td><td><code>002_perfis_e_portal_cliente.sql</code></td><td>Tabela perfis, trigger de criação, portal público</td></tr>
+          <tr><td>003</td><td><code>003_fix_agendamento_publico.sql</code></td><td>Correções no agendamento público</td></tr>
+          <tr><td>004</td><td><code>004_disponibilidade_e_promocoes.sql</code></td><td>Indisponibilidades, duração, promoções, horários</td></tr>
+          <tr><td>005</td><td><code>005_pagamento_misto.sql</code></td><td>Pagamento misto (campo TEXT)</td></tr>
+          <tr><td>006</td><td><code>006_horarios_07_as_22.sql</code></td><td>Horários 07h–22h</td></tr>
+          <tr><td>007</td><td><code>007_fix_servicos_rls_e_duracao.sql</code></td><td>Correção RLS + duração 60min Cílios/Depilação</td></tr>
+          <tr><td>008</td><td><code>008_fix_servicos_publico_rls.sql</code></td><td>RPC get_servicos_do_profissional</td></tr>
+          <tr><td>009</td><td><code>009_agendamentos_ocupados_e_login_obrigatorio.sql</code></td><td>RPC get_agendamentos_ocupados</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>4. Inicie o servidor</h3>
+    <pre>npm run dev
+<span class="comment"># Acesse: http://localhost:3000</span></pre>
+  </section>
+
+  <!-- MIGRATIONS TIMELINE -->
+  <section id="migrations">
+    <h2>📜 Histórico de Migrations</h2>
+    <div class="timeline">
+      <div class="timeline-item">
+        <h4>001 — Schema Inicial</h4>
+        <p>Tabelas <code>clientes</code>, <code>servicos</code>, <code>agendamentos</code>. RLS básico. Triggers <code>updated_at</code>.</p>
+      </div>
+      <div class="timeline-item">
+        <h4>002 — Perfis e Portal do Cliente</h4>
+        <p>Tabela <code>perfis</code> com código único de 4 dígitos. Trigger <code>handle_new_user</code>. <code>cliente_user_id</code>. RPC <code>criar_agendamento_publico</code>.</p>
+      </div>
+      <div class="timeline-item">
+        <h4>003 — Correções Agendamento Público</h4>
+        <p>Correções na função de criação de agendamento. Fuso horário America/Sao_Paulo.</p>
+      </div>
+      <div class="timeline-item">
+        <h4>004 — Disponibilidade e Promoções</h4>
+        <p>Tabela <code>indisponibilidades</code>. Campos <code>duracao_minutos</code>, <code>preco_promocional</code>, <code>promocao_ativa</code>. RPC <code>get_horarios_disponiveis</code> (07h–22h).</p>
+      </div>
+      <div class="timeline-item">
+        <h4>005 — Pagamento Misto</h4>
+        <p>Campo <code>forma_pagamento</code> muda de ENUM para TEXT. Suporta combinações como "Pix + Dinheiro".</p>
+      </div>
+      <div class="timeline-item">
+        <h4>006 — Horários 07h às 22h</h4>
+        <p>Janela de atendimento expandida de 08h–17h para 07h–22h.</p>
+      </div>
+      <div class="timeline-item">
+        <h4>007 — Correção RLS e Duração</h4>
+        <p>Remove política que vazava serviços entre profissionais. Cílios e Depilação: duração padrão 60 min.</p>
+      </div>
+      <div class="timeline-item">
+        <h4>008 — RPC Serviços Públicos</h4>
+        <p>Cria <code>get_servicos_do_profissional(user_id)</code> (SECURITY DEFINER) para clientes lerem serviços com segurança.</p>
+      </div>
+      <div class="timeline-item">
+        <h4>009 — Horários Ocupados e Login Obrigatório</h4>
+        <p>RPC <code>get_agendamentos_ocupados</code>. Slots com agendamentos ativos ficam ocultos para clientes. Login exigido para agendar.</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <p>
+    <strong style="color: var(--gold);">💅 Studio Manager</strong> — Sistema de agendamento para profissionais de beleza<br/>
+    <a href="https://studio-manager-three.vercel.app" target="_blank">studio-manager-three.vercel.app</a> |
+    <a href="https://github.com/supp3rdan/studio-manager" target="_blank">GitHub</a> |
+    <a href="./README.md">README</a> |
+    <a href="./ARCHITECTURE.md">Architecture</a> |
+    <a href="./CHANGELOG.md">Changelog</a>
   </p>
-
-  <h3>Passo 3: Criar Usuário de Acesso</h3>
-  <p>No painel do Supabase, acesse <strong>Authentication → Users</strong>, clique em <strong>Add User → Create User</strong> e cadastre seu e-mail e senha de acesso.</p>
-
-  <h3>Passo 4: Comandos de Execução</h3>
-  <div class="grid-two">
-    <div class="feature-box">
-      <strong>Modo Desenvolvimento (Dev)</strong>
-      <p>Com Hot Reloading ativado:</p>
-      <pre style="margin-top: 6px; padding: 6px 10px;"><code>npm run dev</code></pre>
-      <p>Acesse: <code>http://localhost:3000</code></p>
-    </div>
-    <div class="feature-box">
-      <strong>Modo Produção (Build)</strong>
-      <p>Compilação estática e SSR otimizada:</p>
-      <pre style="margin-top: 6px; padding: 6px 10px;"><code>npm run build
-npm run start</code></pre>
-      <p>Build validado com código de saída 0.</p>
-    </div>
-  </div>
-
-  <!-- Page Break for clean printing -->
-  <div class="page-break"></div>
-
-  <!-- 2. Tecnologias Utilizadas -->
-  <h2><span class="num">2</span> Tecnologias Utilizadas (Stack Tecnológico)</h2>
-  <table>
-    <thead>
-      <tr>
-        <th style="width: 25%;">Camada</th>
-        <th style="width: 25%;">Tecnologia</th>
-        <th>Papel e Justificativa</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><strong>Front-end</strong></td>
-        <td>Next.js 14 (App Router) + React 18</td>
-        <td>Renderização otimizada (SSR/SSG), roteamento modular, páginas estáticas e suporte a Edge Middleware.</td>
-      </tr>
-      <tr>
-        <td><strong>Linguagem</strong></td>
-        <td>TypeScript 5</td>
-        <td>Tipagem estática ponta a ponta garantindo integridade de dados e ausência de erros em runtime.</td>
-      </tr>
-      <tr>
-        <td><strong>Design & UI</strong></td>
-        <td>Tailwind CSS + Shadcn / Radix UI</td>
-        <td>Design system minimalista com a paleta <em>Dark & Gold</em> (preto profundo <code>#0A0A0A</code> e ouro metálico <code>#C9A84C</code>) e acessibilidade WAI-ARIA.</td>
-      </tr>
-      <tr>
-        <td><strong>Gráficos</strong></td>
-        <td>Recharts</td>
-        <td>Exibição gráfica responsiva para faturamento mensal (BarChart) e canais de pagamento (PieChart).</td>
-      </tr>
-      <tr>
-        <td><strong>Formulários</strong></td>
-        <td>React Hook Form + Zod</td>
-        <td>Validação rigorosa de esquemas no cliente, alta performance e auto-fill dinâmico.</td>
-      </tr>
-      <tr>
-        <td><strong>Back-end & DB</strong></td>
-        <td>Supabase (PostgreSQL)</td>
-        <td>Persistência com tipagem relacional, triggers, índices otimizados e Supabase Auth integrado.</td>
-      </tr>
-      <tr>
-        <td><strong>Feedback</strong></td>
-        <td>Sonner (Toasts)</td>
-        <td>Notificações visuais e alertas de sucesso/erro integrados ao tema visual.</td>
-      </tr>
-      <tr>
-        <td><strong>Deploy / CI/CD</strong></td>
-        <td>Vercel</td>
-        <td>Deploy contínuo conectado ao repositório Git com distribuição global via Edge Network.</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <!-- 3. Arquitetura da Aplicação -->
-  <h2><span class="num">3</span> Arquitetura e Estrutura de Pastas</h2>
-  <pre><code>studio-manager/
-├── app/
-│   ├── (auth)/login/page.tsx             # Tela de login responsiva Dark & Gold
-│   ├── (dashboard)/
-│   │   ├── layout.tsx                   # Layout protegido (Sidebar + Header autenticado)
-│   │   ├── dashboard/page.tsx           # Painel analítico financeiro (RF04)
-│   │   ├── clientes/
-│   │   │   ├── page.tsx                 # Listagem e busca em tempo real (RF01)
-│   │   │   └── [id]/page.tsx            # Perfil do cliente e histórico de atendimentos
-│   │   ├── servicos/page.tsx            # Catálogo de procedimentos agrupado (RF02)
-│   │   └── agendamentos/page.tsx        # Agenda transacional com filtros (RF03)
-│   ├── api/auth/callback/route.ts       # Endpoint para troca de tokens de sessão
-│   ├── globals.css                      # Cores CSS Variables e tema Dark & Gold
-│   └── layout.tsx                       # Layout raiz com Toaster e configurações globais
-├── components/
-│   ├── ui/                              # Primitivos UI (Button, Card, Dialog, Table, etc.)
-│   ├── layout/                          # Sidebar de navegação e Header com logout
-│   ├── clientes/                        # Modal de formulário para Clientes
-│   ├── servicos/                        # Modal de formulário para Serviços
-│   ├── agendamentos/                    # Modal com auto-preenchimento de valores
-│   └── dashboard/                       # Cards de indicadores e gráficos Recharts
-├── lib/
-│   ├── supabase/                        # Clients do Supabase (Client-side e Server-side)
-│   ├── queries/                         # Consultas SQL tipadas e regras de agregação
-│   └── utils.ts                         # Formatadores BRL, telefone e badges semânticos
-├── middleware.ts                         # Interceptador de rotas para proteção de acesso
-├── supabase/migrations/                  # Scripts SQL versionados para o banco de dados
-├── types/database.ts                    # Definições de tipos TypeScript do banco de dados
-└── tailwind.config.ts                   # Configuração e tema visual customizado</code></pre>
-
-  <!-- Page Break for clean printing -->
-  <div class="page-break"></div>
-
-  <!-- 4. Módulos do Sistema -->
-  <h2><span class="num">4</span> Módulos do Sistema e Funcionalidades</h2>
-
-  <h3>🔐 Autenticação e Controle de Acesso (RNF02)</h3>
-  <p>Implementado via <code>middleware.ts</code> e Supabase Auth. Rotas privadas só são renderizadas após validação do token de sessão via cookies seguros. Usuários não autenticados são automaticamente redirecionados para a rota <code>/login</code>.</p>
-
-  <h3>👥 Módulo de Clientes (RF01 — <code>/clientes</code> e <code>/clientes/[id]</code>)</h3>
-  <ul>
-    <li><strong>Gestão Completa (CRUD)</strong>: Cadastro e edição de clientes com atributos: ID (UUID), Nome, WhatsApp e timestamp de cadastro.</li>
-    <li><strong>Busca em Tempo Real</strong>: Campo de pesquisa responsivo com filtro instantâneo por nome ou telefone.</li>
-    <li><strong>Exclusão Segura</strong>: Confirmação modal com componente <code>AlertDialog</code> antes da exclusão definitiva.</li>
-    <li><strong>Perfil e Histórico (<code>/clientes/[id]</code>)</strong>: Ao clicar no nome do cliente, abre-se a visão consolidada com quantidade total de procedimentos, total investido (R$) e a tabela completa com seu histórico de atendimentos.</li>
-  </ul>
-
-  <h3>✂️ Módulo de Serviços (RF02 — <code>/servicos</code>)</h3>
-  <ul>
-    <li><strong>Catálogo Dinâmico</strong>: Procedimentos organizados em cards categorizados em: <em>Cílios</em>, <em>Sobrancelhas</em> e <em>Depilação</em>.</li>
-    <li><strong>Tipo de Precificação</strong>: Suporte aos tipos <em>Tabela Padrão</em> e <em>Promoção</em> (identificado com badge dourado de destaque).</li>
-    <li><strong>Preço Base</strong>: Armazenamento do preço original utilizado como valor inicial dinâmico na agenda.</li>
-  </ul>
-
-  <h3>📅 Módulo de Agendamentos (RF03 — <code>/agendamentos</code>)</h3>
-  <ul>
-    <li><strong>Agenda Transacional</strong>:
-      <ul>
-        <li>Data e Horário com seletor <code>datetime-local</code>.</li>
-        <li>Chaves Estrangeiras vinculadas: Cliente (RF01) e Serviço (RF02).</li>
-        <li><strong>Formas de Pagamento</strong>: <em>Pix</em>, <em>Cartão Débito</em>, <em>Cartão Crédito</em>, <em>Crédito Bemol</em> e <em>Dinheiro</em>.</li>
-        <li><strong>Status</strong>: <em>Agendado</em>, <em>Confirmado</em>, <em>Concluído</em>, <em>Cancelado</em> e <em>Não Compareceu</em>.</li>
-        <li><strong>Local</strong>: <em>Studio</em> ou <em>Domicílio</em>.</li>
-        <li>Campo para Observações adicionais.</li>
-      </ul>
-    </li>
-    <li><strong>Filtro Rápido</strong>: Dropdown permitindo filtrar a listagem pelo status do atendimento.</li>
-  </ul>
-
-  <h3>📊 Painel Analítico / Dashboard (RF04 — <code>/dashboard</code>)</h3>
-  <ul>
-    <li><strong>4 Indicadores Principais (Cards)</strong>:
-      <ul>
-        <li><strong>Faturamento Realizado</strong>: Somatório restrito aos registros com status <code>Concluído</code>.</li>
-        <li><strong>Faturamento Previsto</strong>: Somatório das receitas de atendimentos <code>Agendado</code> e <code>Confirmado</code>.</li>
-        <li><strong>Volume Concluído</strong>: Quantidade total de atendimentos realizados.</li>
-        <li><strong>Volume Pendente</strong>: Quantidade de procedimentos agendados aguardando execução.</li>
-      </ul>
-    </li>
-    <li><strong>Gráfico Mensal (Recharts BarChart)</strong>: Evolução do faturamento dos últimos 6 meses com tooltip e moeda formatada em R$.</li>
-    <li><strong>Gráfico de Canais (Recharts Donut)</strong>: Proporção de faturamento por método de pagamento.</li>
-  </ul>
-
-  <!-- 5. Regras de Negócio e Segurança -->
-  <h2><span class="num">5</span> Regras de Negócio e Segurança de Dados</h2>
-  
-  <div class="callout">
-    <div class="callout-title">⚡ RN01 — Preenchimento Dinâmico de Valores</div>
-    <p>No formulário de agendamento (<code>agendamento-form.tsx</code>), ao selecionar um serviço, um hook <code>useEffect</code> captura o evento e preenche automaticamente o campo <strong>"Valor Final"</strong> com o <code>preco_base</code> do catálogo. O campo permanece desbloqueado para que o profissional possa aplicar descontos ou taxas extras livremente.</p>
-  </div>
-
-  <div class="callout">
-    <div class="callout-title">🎯 RN02 — Validação e Acurácia de Métricas Financeiras</div>
-    <p>Todas as consultas financeiras (em <code>lib/queries/agendamentos.ts</code>) excluem obrigatoriamente qualquer agendamento com status <code>Cancelado</code> ou <code>Não Compareceu</code>. Isso impede a distorção do faturamento real e previsto.</p>
-  </div>
-
-  <div class="callout">
-    <div class="callout-title">🛡️ RNF01 — Row Level Security (RLS) no PostgreSQL</div>
-    <p>Todas as tabelas do banco possuem RLS ativada com políticas de <code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code> e <code>DELETE</code> vinculadas ao identificador do usuário autenticado (<code>auth.uid() = user_id</code>), garantindo privacidade e isolamento total dos dados.</p>
-  </div>
-
-  <div class="footer-note">
-    <span>Studio Manager — Aplicação Web Next.js 14 & Supabase</span>
-    <span>Documentação Oficial v1.0.0</span>
-  </div>
+  <p style="margin-top: 0.5rem;">Desenvolvido com Next.js 14 + Supabase + Vercel</p>
+</footer>
 
 </body>
 </html>

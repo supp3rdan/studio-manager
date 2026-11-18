@@ -1,0 +1,509 @@
+# 🏗️ Arquitetura — Studio Manager
+
+> Documento técnico completo: arquitetura, DFD, banco de dados, fluxos e segurança.
+
+---
+
+## 1. Visão Geral do Sistema
+
+O Studio Manager é uma aplicação **full-stack** com Next.js 14 (App Router) no frontend/backend e Supabase (PostgreSQL + Auth) como infraestrutura de dados. O deploy é feito na Vercel com CI/CD automático.
+
+```mermaid
+flowchart TD
+    subgraph Usuários
+        P["👩‍💼 Profissional"]
+        C["💁 Cliente"]
+    end
+
+    subgraph Vercel["☁️ Vercel (Deploy)"]
+        subgraph NextJS["Next.js 14 App Router"]
+            UI["Componentes React\n(Tailwind + Shadcn)"]
+            SC["Server Components\n(RSC)"]
+            API["Route Handlers\n/api/*"]
+            MW["Middleware\n(Auth Guard)"]
+        end
+    end
+
+    subgraph Supabase["🟩 Supabase"]
+        AUTH["Auth\n(JWT + Email)"]
+        DB["PostgreSQL\n(RLS habilitado)"]
+        RPC["RPCs\n(SECURITY DEFINER)"]
+    end
+
+    P -->|"HTTPS"| MW
+    C -->|"HTTPS"| MW
+    MW --> SC
+    MW --> UI
+    MW --> API
+    SC -->|"supabase/server.ts"| DB
+    UI -->|"supabase/client.ts"| AUTH
+    API -->|"supabase/server.ts"| RPC
+    RPC --> DB
+    AUTH --> DB
+```
+
+---
+
+## 2. DFD — Nível 0 (Diagrama de Contexto)
+
+Visão de mais alto nível: o sistema e suas entidades externas.
+
+```mermaid
+flowchart LR
+    PROF["👩‍💼\nProfissional"]
+    CLI["💁\nCliente"]
+    EMAIL["📧\nSistema de E-mail\n(Supabase Auth)"]
+    SM(["🗂️\nStudio Manager"])
+
+    PROF -->|"Gerencia serviços,\nagenda, disponibilidade,\nclientes, promoções"| SM
+    SM -->|"Dashboard, relatórios,\nconfirmações"| PROF
+
+    CLI -->|"Busca profissional,\nescolhe serviço,\nagenda horário"| SM
+    SM -->|"Horários disponíveis,\nconfirmação de agendamento"| CLI
+
+    SM -->|"E-mails de confirmação\ne verificação"| EMAIL
+    EMAIL -->|"Links de autenticação\ne reset de senha"| PROF
+    EMAIL -->|"Links de autenticação\ne reset de senha"| CLI
+```
+
+---
+
+## 3. DFD — Nível 1 (Processos Principais)
+
+```mermaid
+flowchart TD
+    PROF["👩‍💼 Profissional"]
+    CLI["💁 Cliente"]
+
+    subgraph P1["Processo 1: Autenticação"]
+        REG["Cadastro\n(/register)"]
+        LOGIN["Login\n(/login)"]
+        RESET["Recuperação\n(/recuperar-senha)"]
+    end
+
+    subgraph P2["Processo 2: Gestão de Serviços"]
+        CRUD_SRV["CRUD de Serviços"]
+        PROMO["Preços Promocionais"]
+        DUR["Duração por Serviço"]
+    end
+
+    subgraph P3["Processo 3: Disponibilidade"]
+        BLOQ["Bloquear Dias/Horários"]
+        SLOTS["Calcular Slots Livres\n(07h–22h)"]
+    end
+
+    subgraph P4["Processo 4: Agendamento"]
+        BUSCA["Buscar Profissional\n(/buscar)"]
+        PERFIL["Ver Perfil Público\n(/p/[code])"]
+        AGENDAR["Criar Agendamento\n(login obrigatório)"]
+        CONFIRMAR["Confirmar/Cancelar"]
+    end
+
+    subgraph P5["Processo 5: Dashboard"]
+        METRICAS["Métricas Financeiras"]
+        GRAFICOS["Gráficos (Recharts)"]
+        PDF["Exportar PDF"]
+    end
+
+    subgraph DB["🗄️ Supabase PostgreSQL"]
+        T_PERF["perfis"]
+        T_SRV["servicos"]
+        T_CLI["clientes"]
+        T_AG["agendamentos"]
+        T_IND["indisponibilidades"]
+    end
+
+    PROF --> P1 --> T_PERF
+    PROF --> P2 --> T_SRV
+    PROF --> P3 --> T_IND
+    PROF --> P4 --> T_AG
+    PROF --> P5
+
+    CLI --> P1
+    CLI --> P4
+    P4 --> T_AG
+    P4 --> T_CLI
+
+    P5 --> T_AG
+    P3 --> SLOTS --> T_AG
+    P3 --> SLOTS --> T_IND
+```
+
+---
+
+## 4. Diagrama de Banco de Dados (ER)
+
+```mermaid
+erDiagram
+    PERFIS {
+        uuid id PK
+        text tipo_usuario
+        text nome
+        text whatsapp
+        text nome_studio
+        varchar4 codigo_profissional UK
+        text email
+        timestamptz criado_em
+        timestamptz atualizado_em
+    }
+
+    SERVICOS {
+        uuid id PK
+        uuid user_id FK
+        text categoria
+        text nome
+        numeric preco_base
+        numeric preco_promocional
+        boolean promocao_ativa
+        integer duracao_minutos
+        text tipo
+        boolean ativo
+        timestamptz criado_em
+        timestamptz atualizado_em
+    }
+
+    CLIENTES {
+        uuid id PK
+        uuid user_id FK
+        text nome
+        text whatsapp
+        text email
+        text observacoes
+        timestamptz criado_em
+        timestamptz atualizado_em
+    }
+
+    AGENDAMENTOS {
+        uuid id PK
+        uuid user_id FK
+        uuid cliente_id FK
+        uuid cliente_user_id FK
+        uuid servico_id FK
+        timestamptz data_hora
+        numeric valor_final
+        text forma_pagamento
+        text status
+        text local
+        text observacoes
+        timestamptz criado_em
+        timestamptz atualizado_em
+    }
+
+    INDISPONIBILIDADES {
+        uuid id PK
+        uuid user_id FK
+        text tipo
+        timestamptz data_inicio
+        timestamptz data_fim
+        text titulo
+        boolean recorrente
+        integer dia_semana
+        timestamptz criado_em
+    }
+
+    PERFIS ||--o{ SERVICOS : "tem"
+    PERFIS ||--o{ CLIENTES : "gerencia"
+    PERFIS ||--o{ AGENDAMENTOS : "recebe"
+    PERFIS ||--o{ INDISPONIBILIDADES : "define"
+    CLIENTES ||--o{ AGENDAMENTOS : "realiza"
+    SERVICOS ||--o{ AGENDAMENTOS : "é escolhido em"
+```
+
+---
+
+## 5. Fluxo de Autenticação
+
+```mermaid
+sequenceDiagram
+    participant U as Usuário
+    participant MW as Middleware
+    participant AUTH as Supabase Auth
+    participant DB as PostgreSQL
+
+    U->>MW: Acessa rota protegida
+    MW->>AUTH: Verifica sessão (cookie JWT)
+    
+    alt Sem sessão
+        AUTH-->>MW: null
+        MW-->>U: Redirect /login?next=/rota-original
+        U->>AUTH: Faz login (email/senha)
+        AUTH->>DB: Valida credenciais
+        DB-->>AUTH: OK
+        AUTH-->>U: Cookie JWT + redirect /rota-original
+    else Com sessão válida
+        AUTH-->>MW: user object
+        MW-->>U: Acessa a rota normalmente
+    end
+
+    Note over DB: Trigger on_auth_user_created<br/>cria perfil automaticamente<br/>no primeiro cadastro
+```
+
+---
+
+## 6. Fluxo de Agendamento (Cliente)
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente
+    participant UI as /p/[code]
+    participant API as /api/agendamentos/publico
+    participant RPC as PostgreSQL RPC
+    participant DB as Banco
+
+    C->>UI: Acessa perfil público do profissional
+    UI->>RPC: get_servicos_do_profissional(user_id)
+    RPC-->>UI: Lista de serviços ativos
+
+    C->>UI: Escolhe serviço e data
+    UI->>API: GET /api/horarios-disponiveis?profissional=&data=&duracao=
+    API->>RPC: get_horarios_disponiveis(prof_id, data, duracao)
+    RPC->>DB: Verifica agendamentos + indisponibilidades
+    DB-->>RPC: Slots livres
+    RPC-->>UI: Lista de horários (07h–22h, sem ocupados)
+
+    alt Cliente não está logado
+        UI-->>C: Modal de autenticação
+        C->>UI: Login/Cadastro
+    end
+
+    C->>UI: Seleciona horário + forma de pagamento
+    UI->>API: POST /api/agendamentos/publico
+    API->>RPC: criar_agendamento_publico(...)
+    RPC->>DB: INSERT em agendamentos + clientes
+    DB-->>RPC: Agendamento criado
+    RPC-->>UI: JSON com confirmação
+    UI-->>C: Tela de sucesso
+```
+
+---
+
+## 7. Fluxo de Disponibilidade de Horários
+
+```mermaid
+flowchart TD
+    START["Requisição: data + profissional_id"] --> CHECK_DIA
+
+    CHECK_DIA{"Dia inteiro\nbloqueado?"}
+    CHECK_DIA -->|"Sim"| VAZIO["Retorna: nenhum horário"]
+    CHECK_DIA -->|"Não"| GERA
+
+    GERA["Gera slots 07h–22h\n(a cada 30 min)"]
+    GERA --> LOOP
+
+    LOOP["Para cada slot:"]
+    LOOP --> CHECK_AGEND
+
+    CHECK_AGEND{"Conflito com\nagendamentos?"}
+    CHECK_AGEND -->|"Sim"| SKIP["Ocultar slot"]
+    CHECK_AGEND -->|"Não"| CHECK_BLOQ
+
+    CHECK_BLOQ{"Conflito com\nindisponibilidade\nde horário?"}
+    CHECK_BLOQ -->|"Sim"| SKIP
+    CHECK_BLOQ -->|"Não"| ADD["Incluir slot na resposta"]
+
+    SKIP --> NEXT
+    ADD --> NEXT
+    NEXT["Próximo slot +30min"] --> LOOP
+
+    LOOP -->|"22h atingido"| RETORNA["Retorna horários disponíveis"]
+```
+
+---
+
+## 8. Mapa de Componentes
+
+```mermaid
+flowchart TD
+    subgraph Layout
+        SHELL["app-shell.tsx"]
+        HEADER["header.tsx"]
+        SIDEBAR["sidebar.tsx"]
+    end
+
+    subgraph Dashboard
+        MC["metric-card.tsx"]
+        RC["revenue-chart.tsx"]
+        PC["payment-chart.tsx"]
+    end
+
+    subgraph Servicos
+        SF["servico-form.tsx\n(CRUD + duração + promoção)"]
+        IM["indisponibilidade-modal.tsx\n(Bloqueio de horários)"]
+    end
+
+    subgraph Agendamentos
+        AF["agendamento-form.tsx\n(Para profissional)"]
+    end
+
+    subgraph Publico
+        AM["agendamento-modal.tsx\n(Para cliente, login obrigatório)"]
+    end
+
+    subgraph UI["Componentes Base (ui/)"]
+        PS["payment-selector.tsx\n(Pagamento misto)"]
+        BUTTON["button.tsx"]
+        DIALOG["dialog.tsx"]
+        SELECT["select.tsx"]
+        CAL["calendar.tsx"]
+    end
+
+    subgraph Perfil
+        PM["perfil-modal.tsx"]
+    end
+
+    SHELL --> HEADER
+    SHELL --> SIDEBAR
+    AF --> PS
+    AM --> PS
+    SF --> UI
+    AF --> UI
+    AM --> CAL
+```
+
+---
+
+## 9. Segurança — RLS e RPCs
+
+### Row Level Security (RLS)
+
+Todas as tabelas têm RLS habilitado. A regra base é: **usuário só acessa dados onde `auth.uid() = user_id`**.
+
+| Tabela | Política | Regra |
+|---|---|---|
+| `perfis` | `perfis_read_own` | `auth.uid() = id` |
+| `perfis` | `perfis_public_read_profissionais` | `tipo_usuario = 'profissional'` (público) |
+| `perfis` | `perfis_update_own` | `auth.uid() = id` |
+| `servicos` | `servicos_select/insert/update/delete` | `auth.uid() = user_id` |
+| `clientes` | `clientes_select/insert/update/delete` | `auth.uid() = user_id` |
+| `clientes` | `clientes_insert_publico` | `true` (via RPC SECURITY DEFINER) |
+| `agendamentos` | `agendamentos_select` | `auth.uid() = user_id` |
+| `agendamentos` | `agendamentos_select_cliente` | `auth.uid() = cliente_user_id` |
+| `agendamentos` | `agendamentos_insert_publico` | `true` (via RPC SECURITY DEFINER) |
+| `indisponibilidades` | `indisponibilidades_select/insert/update/delete` | `auth.uid() = user_id` |
+| `indisponibilidades` | `indisponibilidades_select_publico` | `true` (leitura pública p/ calcular slots) |
+
+### RPCs SECURITY DEFINER
+
+Funções que rodam com privilégios elevados para operações públicas (sem vazamento de dados de outros usuários):
+
+| Função | Propósito | Acesso |
+|---|---|---|
+| `get_servicos_do_profissional(user_id)` | Retorna serviços ativos de UM profissional específico | `anon`, `authenticated` |
+| `get_horarios_disponiveis(prof_id, data, duracao)` | Calcula slots livres cruzando agendamentos + indisponibilidades | `anon`, `authenticated`, `service_role` |
+| `get_agendamentos_ocupados(prof_id, data)` | Retorna horários ocupados (para ocultar no calendário do cliente) | `anon`, `authenticated` |
+| `criar_agendamento_publico(...)` | Cria agendamento + cliente (se necessário) com segurança | `anon`, `authenticated`, `service_role` |
+| `generate_unique_codigo_profissional()` | Gera código único de 4 dígitos | interno (trigger) |
+| `handle_new_user()` | Cria perfil automaticamente no cadastro | interno (trigger) |
+
+---
+
+## 10. API Routes
+
+### `POST /api/agendamentos/publico`
+Cria um novo agendamento via portal público.
+
+**Body (JSON):**
+```json
+{
+  "codigoProfissional": "1234",
+  "servicoId": "uuid",
+  "dataHora": "2024-01-15T10:00:00-04:00",
+  "local": "Studio",
+  "formaPagamento": "Pix",
+  "clienteNome": "Maria Silva",
+  "clienteWhatsapp": "92999999999",
+  "clienteEmail": "maria@email.com",
+  "clienteUserId": "uuid-do-usuario-logado",
+  "observacoes": "Texto opcional"
+}
+```
+
+**Resposta (200):** JSON com dados do agendamento criado.  
+**Erros:** 400 (dados inválidos), 404 (profissional não encontrado), 409 (horário ocupado).
+
+---
+
+### `GET /api/horarios-disponiveis`
+Retorna horários livres para um profissional em uma data.
+
+**Query params:**
+- `profissional` — `user_id` do profissional
+- `data` — data no formato `YYYY-MM-DD`
+- `duracao` — duração em minutos (padrão: 30)
+
+**Resposta (200):**
+```json
+{
+  "horarios": ["2024-01-15T07:00:00-04:00", "2024-01-15T07:30:00-04:00", "..."]
+}
+```
+
+---
+
+### `GET /api/auth/callback`
+Callback do Supabase Auth após confirmação de e-mail ou OAuth.  
+Redireciona para `/email-confirmado` ou `/dashboard`.
+
+---
+
+## 11. Variáveis de Ambiente
+
+| Variável | Obrigatória | Descrição |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | URL do projeto Supabase |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Chave anônima pública do Supabase |
+
+> As variáveis com prefixo `NEXT_PUBLIC_` são expostas no browser. Nunca use a `service_role` key como pública.
+
+---
+
+## 12. Histórico de Migrations
+
+| # | Arquivo | Descrição |
+|---|---|---|
+| 001 | `001_initial_schema.sql` | Schema inicial: `clientes`, `servicos`, `agendamentos` + RLS + triggers `updated_at` |
+| 002 | `002_perfis_e_portal_cliente.sql` | Tabela `perfis`, trigger `handle_new_user`, `cliente_user_id`, RPC `criar_agendamento_publico` |
+| 003 | `003_fix_agendamento_publico.sql` | Correções na função de agendamento público |
+| 004 | `004_disponibilidade_e_promocoes.sql` | Tabela `indisponibilidades`, campos `duracao_minutos`/`preco_promocional`/`promocao_ativa`, RPC `get_horarios_disponiveis` |
+| 005 | `005_pagamento_misto.sql` | Muda `forma_pagamento` de ENUM para TEXT (suporta combinações) |
+| 006 | `006_horarios_07_as_22.sql` | Atualiza geração de slots para 07h–22h (era 08h–17h) |
+| 007 | `007_fix_servicos_rls_e_duracao.sql` | Remove política pública de serviços; seta duração 60min p/ Cílios e Depilação |
+| 008 | `008_fix_servicos_publico_rls.sql` | Cria RPC `get_servicos_do_profissional` (SECURITY DEFINER) para clientes lerem serviços |
+| 009 | `009_agendamentos_ocupados_e_login_obrigatorio.sql` | RPC `get_agendamentos_ocupados`; oculta slots ocupados e bloqueados para clientes |
+
+---
+
+## 13. Lib e Queries
+
+```
+lib/
+├── supabase/
+│   ├── client.ts       → Cliente Supabase para o browser (createBrowserClient)
+│   └── server.ts       → Cliente Supabase para Server Components e API Routes
+├── queries/
+│   ├── servicos.ts     → getServicos(), createServico(), updateServico(), deleteServico(), togglePromocao(), updateDuracao()
+│   ├── clientes.ts     → getClientes(), createCliente(), updateCliente(), deleteCliente()
+│   ├── agendamentos.ts → getAgendamentos(), createAgendamento(), updateAgendamento(), deleteAgendamento()
+│   ├── perfis.ts       → getPerfil(), updatePerfil(), getProfissionalByCodigo(), getServicosDoProfissional(), getAgendamentosDoCliente()
+│   └── indisponibilidades.ts → getIndisponibilidades(), createIndisponibilidade(), deleteIndisponibilidade(), getHorariosDisponiveis()
+├── email.ts            → Funções de envio de e-mail (confirmação de agendamento)
+├── pdf-report.ts       → Geração de PDF com jsPDF + jspdf-autotable
+└── utils.ts            → formatCurrency(), getCategoriaColor(), formatDate(), cn()
+```
+
+---
+
+## 14. PWA (Progressive Web App)
+
+O sistema funciona como PWA, podendo ser instalado como app no celular:
+
+| Arquivo | Função |
+|---|---|
+| `public/manifest.json` | Metadados do app (nome, ícones, cores) |
+| `public/sw.js` | Service Worker para cache offline |
+| `public/icons/` | Ícones em 192px e 512px (normal + maskable) |
+| `components/pwa/pwa-register.tsx` | Registro do Service Worker no lado cliente |
+
+---
+
+> 📖 Voltar para o [README.md](./README.md) | Ver [CHANGELOG.md](./CHANGELOG.md)
