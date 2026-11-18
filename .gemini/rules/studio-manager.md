@@ -9,13 +9,14 @@
 ## IDENTIDADE DO PROJETO
 
 - **Nome:** Studio Manager
-- **Stack:** Next.js 14 (App Router) + TypeScript + Supabase (PostgreSQL + Auth) + Tailwind + Shadcn/ui
+- **Stack:** Next.js 14.2.35 (App Router) + TypeScript + Supabase (PostgreSQL + Auth) + Tailwind + Shadcn/ui
 - **Deploy:** Vercel → branch `main` → auto-deploy
 - **URL produção:** https://studio-manager-three.vercel.app
 - **Repo:** https://github.com/supp3rdan/studio-manager
 - **Tema visual:** Dark & Gold (`bg-surface` / `#C9A84C`) — nunca altere o tema sem pedido explícito
 - **Idioma da UI:** Português (pt-BR) — SEMPRE
 - **Git workflow:** feature → branch `testes` → merge → `main` → push ambos
+- **Versão atual:** 0.12.0 (ver `CHANGELOG.md`)
 
 ---
 
@@ -71,15 +72,21 @@ dia_semana INTEGER | null (0=Dom...6=Sáb, quando recorrente)
 
 ## RPCs SUPABASE (SECURITY DEFINER — acesso público controlado)
 
-| Função | Params | Uso |
-|---|---|---|
-| `get_servicos_do_profissional` | `user_id UUID` | Cliente lê serviços de um profissional |
-| `get_horarios_disponiveis` | `prof_id, data DATE, duracao INT=30` | Slots livres 07h–22h |
-| `get_agendamentos_ocupados` | `prof_id UUID, data DATE` | Slots com agendamentos ativos |
-| `criar_agendamento_publico` | `codigo_prof, servico_id, data_hora, local, forma_pagamento, cliente_nome, whatsapp, email?, cliente_user_id?, observacoes?` | Cria agendamento via portal público |
-| `cancelar_agendamento_cliente` | `ag_id UUID, cliente_user_id UUID` | Cliente cancela (exige >2h de antecedência) |
-| `reagendar_agendamento` | `ag_id UUID, prof_user_id UUID, nova_data_hora TIMESTAMPTZ` | Profissional reagenda mantendo todos os dados |
-| `handle_new_user()` | — | Trigger: cria perfil no cadastro |
+> Identidade SEMPRE via `auth.uid()` dentro da RPC. Params `*_user_id` marcados com `_` são legados e **ignorados** (mantidos só p/ compatibilidade de assinatura).
+
+| Função | Params | Acesso | Uso |
+|---|---|---|---|
+| `horarios_disponiveis_publico` | `prof_id, data DATE, duracao INT=30` | anon, auth | **Fonte única** de slots livres (retorna `horario TEXT` "HH:mm") |
+| `get_horarios_disponiveis` | idem | anon, auth | Legado → delega p/ a de cima |
+| `sm_horario_conflita` | `prof_id, inicio, fim, ignorar_ag?, checar_bloqueios?=true` | interno | Helper de conflito (agendamentos ativos + bloqueios) |
+| `criar_agendamento_publico` | `codigo_prof, servico_id, data_hora, local, forma_pagamento, cliente_nome, whatsapp, email?, _cliente_user_id?, observacoes?` | auth | Cria agendamento; lock por profissional + valida grade/conflito |
+| `cancelar_agendamento_cliente` | `ag_id, _cliente_user_id` | auth | Cliente cancela (>2h de antecedência) |
+| `reagendar_agendamento` | `ag_id, _prof_user_id, nova_data_hora` | auth | Profissional reagenda (sem sobrepor outro agendamento) |
+| `get_servicos_do_profissional` | `user_id UUID` | anon, auth | Cliente lê serviços de um profissional |
+| `get_agendamentos_ocupados` | `prof_id, inicio, fim TIMESTAMPTZ` | anon, auth | Legado (só fallback de transição da API) |
+| `handle_new_user()` | — | trigger | Cria perfil no cadastro |
+
+**ERRCODEs das RPCs → HTTP** (mapeados em `lib/api-errors.ts`): `28000`→401 · `42501`→403 · `P0002`→404 · `23P01`→409 (conflito de horário) · `22023`/`P0001`→400.
 
 ---
 
@@ -113,9 +120,9 @@ dia_semana INTEGER | null (0=Dom...6=Sáb, quando recorrente)
 
 ### API Routes
 ```
-POST /api/agendamentos/publico      → criar agendamento (público)
+POST /api/agendamentos/publico      → criar agendamento (exige sessão; body validado c/ Zod; 409 = horário ocupado)
 POST /api/agendamentos/[id]/cancelar → cancelar agendamento (cliente autenticado, 2h+ antecedência)
-GET  /api/horarios-disponiveis      → slots livres (?profissional=&data=&duracao=)
+GET  /api/horarios-disponiveis      → { slots: ["HH:mm"] } (?profissional_id=&data=YYYY-MM-DD&duracao=)
 GET  /api/auth/callback             → callback Supabase Auth
 ```
 
@@ -129,7 +136,15 @@ lib/queries/servicos.ts          → CRUD serviços, toggle promoção, update d
 lib/queries/clientes.ts          → CRUD clientes
 lib/queries/agendamentos.ts      → CRUD agendamentos, filtros, dashboard metrics
 lib/queries/perfis.ts            → perfil, getProfissionalByCodigo, getServicosDoProfissional, getAgendamentosDoCliente
-lib/queries/indisponibilidades.ts → CRUD bloqueios, getHorariosDisponiveis
+lib/queries/indisponibilidades.ts → CRUD bloqueios, getHorariosDisponiveis (lança erro se a API falhar — nunca inventa slots)
+```
+
+### Infra / helpers
+```
+lib/supabase/url.ts     → getSupabaseUrl(), getSupabaseAnonKey() (únicos pontos de leitura das env vars)
+lib/api-errors.ts       → rpcErrorResponse(), validationErrorResponse(), isMissingFunction()
+lib/email.ts            → notificarAgendamento/Cancelamento (Resend); escapeHtml() em todo dado de usuário
+.github/workflows/ci.yml → lint + tsc + build em PR/push na main
 ```
 
 ### Componentes principais
@@ -161,6 +176,7 @@ app/buscar/page.tsx
 app/p/[code]/page.tsx
 app/api/agendamentos/publico/route.ts
 app/api/horarios-disponiveis/route.ts
+app/api/agendamentos/[id]/cancelar/route.ts
 app/api/auth/callback/route.ts
 middleware.ts                               → auth guard: rotas protegidas vs públicas
 types/database.ts                           → todos os tipos TS do projeto
@@ -170,16 +186,18 @@ types/database.ts                           → todos os tipos TS do projeto
 
 ## REGRAS DE NEGÓCIO (IMUTÁVEIS SEM PEDIDO EXPLÍCITO)
 
-1. **Horários:** 07h00–22h00, slots de 30 em 30 min
+1. **Horários:** início 07h00–22h00, slots de 30 em 30 min, término até 22h30; só horários futuros (filtrado no servidor)
 2. **Duração padrão:** 30 min; Cílios = 60 min; Depilação = 60 min
 3. **Login obrigatório** para agendar (cliente não logado → modal auth com redirect)
 4. **Slots ocultos para cliente:** qualquer slot com agendamento ativo (status ≠ Cancelado/Não Compareceu) OU com indisponibilidade cadastrada
 5. **Pagamento misto:** `forma_pagamento` é TEXT, aceita combinações livres ("Pix + Cartão Débito")
 6. **Promoção:** toggle por serviço; quando ativa, usa `preco_promocional` no agendamento público
 7. **Código do profissional:** 4 dígitos únicos (1000–9999), gerado pelo trigger `handle_new_user`
-8. **RLS:** `auth.uid() = user_id` em todas as tabelas; RPCs SECURITY DEFINER para leituras públicas
+8. **RLS:** `auth.uid() = user_id` em todas as tabelas; **sem** políticas públicas de INSERT/SELECT — operações públicas só via RPCs SECURITY DEFINER
 9. **Faturamento:** exclui status 'Cancelado' e 'Não Compareceu' de todos os cálculos
 10. **Valor do agendamento público:** usa `preco_promocional` se `promocao_ativa = true`, senão `preco_base`
+11. **Conflito de horário:** validado NO BANCO (`sm_horario_conflita` + `pg_advisory_xact_lock` por profissional). O front só exibe; nunca é a garantia
+12. **Cancelamento pela cliente:** só status Agendado/Confirmado e com >2h de antecedência
 
 ---
 
@@ -193,6 +211,39 @@ types/database.ts                           → todos os tipos TS do projeto
 - **Cores de categoria:** `getCategoriaColor(categoria)` de `lib/utils.ts`
 - **Data/hora:** sempre `America/Manaus` (UTC-4, sem horário de verão, offset `-04:00`, nunca UTC sem conversão)
 - **Tailwind:** tokens customizados em `tailwind.config.ts`; usar `bg-surface`, `border-[#C9A84C]`
+- **API routes:** validar entrada com Zod (`safeParse`) → `validationErrorResponse`; erros de RPC → `rpcErrorResponse`; nunca devolver `error.message` de erro 500 ao cliente
+
+---
+
+## SEGURANÇA — NÃO REINTRODUZIR (checklist antes de qualquer PR)
+
+- ❌ Confiar em `user_id`/`cliente_user_id` vindo do body/query → ✅ `supabase.auth.getUser()` na rota e `auth.uid()` na RPC
+- ❌ `SUPABASE_SERVICE_ROLE_KEY` em rotas → ✅ chave anon + RPC SECURITY DEFINER
+- ❌ Fallback que faz INSERT/UPDATE direto quando a RPC falha → ✅ retornar o erro
+- ❌ Política RLS `USING (true)` / `WITH CHECK (true)` → ✅ RPC dedicada
+- ❌ Calcular disponibilidade em TS ou no front → ✅ alterar só `horarios_disponiveis_publico`/`sm_horario_conflita`
+- ❌ Interpolar dado do usuário em HTML de e-mail → ✅ `escapeParams`/`escapeHtml`
+- ❌ Fallback que exibe grade cheia em caso de erro → ✅ lançar erro + toast
+- ✅ Toda RPC nova: `SET search_path = public`, `REVOKE ALL ... FROM PUBLIC` e `GRANT` explícito (por padrão o Postgres concede EXECUTE a PUBLIC)
+
+---
+
+## MIGRATIONS — COMO ESCREVER (produção não pode cair)
+
+- Envolver em `BEGIN; ... COMMIT;` e ser **idempotente** (`IF NOT EXISTS`, `DROP ... IF EXISTS`, `CREATE OR REPLACE`)
+- Mudou tipo de retorno/params de função? `CREATE OR REPLACE` falha ("cannot change return type") → remover todas as sobrecargas via `DO $$ ... pg_proc ... DROP FUNCTION $$` (ver 012)
+- Preferir manter assinaturas antigas (params ignorados) para o código em produção não quebrar
+- **Ordem de deploy:** código compatível com banco antigo E novo → merge na `main` (Vercel) → depois o usuário roda o SQL no SQL Editor. Sempre informar ao usuário qual arquivo rodar e quando
+- Testar localmente (Postgres 16 com stub de `auth.uid()` lendo `request.jwt.claim.sub`) quando possível
+
+---
+
+## VERIFICAÇÃO (rodar antes de commitar)
+
+```
+npx tsc --noEmit && npm run lint && npm run build
+```
+Build exige `NEXT_PUBLIC_SUPABASE_URL`/`ANON_KEY` (valores fictícios servem) e acesso ao Google Fonts (`next/font` Inter).
 
 ---
 
@@ -211,8 +262,12 @@ types/database.ts                           → todos os tipos TS do projeto
 | 009 | `009_agendamentos_ocupados_e_login_obrigatorio.sql` | get_agendamentos_ocupados RPC; login obrigatório para agendar |
 | 010 | `010_cancelamento_cliente_e_reagendamento.sql` | RPC `cancelar_agendamento_cliente` (2h+ antecedência); RPC `reagendar_agendamento` (profissional) |
 | 011 | `011_fuso_horario_manaus.sql` | Fuso horário padrão ajustado para Manaus/AM (`America/Manaus`, UTC-4, offset `-04:00`) |
+| 012 | `012_seguranca_agendamentos.sql` | Conflito de horário no banco c/ lock; RPCs c/ `auth.uid()`; remove RLS públicas; `horarios_disponiveis_publico`; índices |
 
-**Próxima migration:** `012_...sql`
+> 006 e 011 falhavam silenciosamente em `get_horarios_disponiveis` (tipo de retorno); a 012 corrige.
+> Após confirmar que a 012 foi aplicada em produção: remover `calcularHorariosLegado` de `app/api/horarios-disponiveis/route.ts` (marcado com TODO).
+
+**Próxima migration:** `013_...sql`
 
 ---
 
@@ -229,3 +284,4 @@ Sempre que uma das situações abaixo ocorrer, **atualize as seções correspond
 | Nova regra de negócio | REGRAS DE NEGÓCIO |
 | Nova migration aplicada | MIGRATIONS |
 | Mudança de convenção | CONVENÇÕES |
+| Mudança em auth/RLS/RPC pública | SEGURANÇA |
