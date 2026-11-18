@@ -32,7 +32,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { createAgendamento, updateAgendamento } from "@/lib/queries/agendamentos";
 import { getClientes } from "@/lib/queries/clientes";
 import { getServicos } from "@/lib/queries/servicos";
-import { cn } from "@/lib/utils";
+import { cn, getManausDateString, formatTime, toManausISO } from "@/lib/utils";
 import { PaymentSelector } from "@/components/ui/payment-selector";
 import type { Agendamento, Cliente, Servico } from "@/types/database";
 
@@ -58,21 +58,17 @@ interface AgendamentoFormProps {
   agendamento?: Agendamento | null;
 }
 
-/** Convert ISO timestamp to { data: "YYYY-MM-DD", hora: "HH:MM" } */
+/** Convert ISO timestamp to { data: "YYYY-MM-DD", hora: "HH:MM" } no fuso de Manaus */
 function splitDataHora(iso: string): { data: string; hora: string } {
-  const d = parseISO(iso);
-  const data = format(d, "yyyy-MM-dd");
-  const hora = format(d, "HH:mm");
-  return { data, hora };
+  return {
+    data: getManausDateString(iso),
+    hora: formatTime(iso),
+  };
 }
 
-/** Build ISO string from date-only or date+time */
+/** Build ISO string com offset de Manaus (-04:00) */
 function buildISOString(data: string, hora?: string | null): string {
-  if (hora && hora.trim()) {
-    return new Date(`${data}T${hora}:00`).toISOString();
-  }
-  // No time provided — store as noon to avoid timezone date shifts
-  return new Date(`${data}T12:00:00`).toISOString();
+  return toManausISO(data, hora);
 }
 
 export function AgendamentoForm({ open, onClose, agendamento }: AgendamentoFormProps) {

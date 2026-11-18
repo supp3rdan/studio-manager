@@ -13,7 +13,7 @@ import {
 import { ptBR } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getStatusColor, cn } from "@/lib/utils";
+import { getStatusColor, cn, getManausDateString, getManausHour, formatTime } from "@/lib/utils";
 import type { Agendamento } from "@/types/database";
 
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 7); // 07h às 22h
@@ -34,11 +34,11 @@ export function CalendarioSemanal({
 
   const hoje = new Date();
 
-  // Mapeia agendamentos por dia e hora
+  // Mapeia agendamentos por dia e hora no fuso de Manaus
   const agendamentosPorDia = useMemo(() => {
     const map: Record<string, Agendamento[]> = {};
     agendamentos.forEach((ag) => {
-      const dataKey = format(parseISO(ag.data_hora), "yyyy-MM-dd");
+      const dataKey = getManausDateString(ag.data_hora);
       if (!map[dataKey]) map[dataKey] = [];
       map[dataKey].push(ag);
     });
@@ -51,7 +51,7 @@ export function CalendarioSemanal({
   };
 
   const getHoraAgendamento = (ag: Agendamento) => {
-    return parseISO(ag.data_hora).getHours();
+    return getManausHour(ag.data_hora);
   };
 
   return (
@@ -163,7 +163,7 @@ export function CalendarioSemanal({
                         )}
                       >
                         <span className="block font-semibold truncate">
-                          {format(parseISO(ag.data_hora), "HH:mm")}
+                          {formatTime(ag.data_hora)}
                           {" "}
                           {ag.clientes?.nome?.split(" ")[0] || "—"}
                         </span>

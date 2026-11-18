@@ -191,7 +191,7 @@ types/database.ts                           → todos os tipos TS do projeto
 - **Supabase server:** `lib/supabase/server.ts` → `createServerClient` (Server Components, API Routes)
 - **Formatação de moeda:** `formatCurrency(value)` de `lib/utils.ts`
 - **Cores de categoria:** `getCategoriaColor(categoria)` de `lib/utils.ts`
-- **Data/hora:** sempre `America/Sao_Paulo` (nunca UTC sem conversão)
+- **Data/hora:** sempre `America/Manaus` (UTC-4, sem horário de verão, offset `-04:00`, nunca UTC sem conversão)
 - **Tailwind:** tokens customizados em `tailwind.config.ts`; usar `bg-surface`, `border-[#C9A84C]`
 
 ---
@@ -210,8 +210,9 @@ types/database.ts                           → todos os tipos TS do projeto
 | 008 | `008_fix_servicos_publico_rls.sql` | get_servicos_do_profissional RPC (SECURITY DEFINER) |
 | 009 | `009_agendamentos_ocupados_e_login_obrigatorio.sql` | get_agendamentos_ocupados RPC; login obrigatório para agendar |
 | 010 | `010_cancelamento_cliente_e_reagendamento.sql` | RPC `cancelar_agendamento_cliente` (2h+ antecedência); RPC `reagendar_agendamento` (profissional) |
+| 011 | `011_fuso_horario_manaus.sql` | Fuso horário padrão ajustado para Manaus/AM (`America/Manaus`, UTC-4, offset `-04:00`) |
 
-**Próxima migration:** `011_...sql`
+**Próxima migration:** `012_...sql`
 
 ---
 

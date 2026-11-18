@@ -38,7 +38,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { createClient } from "@/lib/supabase/client";
-import { formatCurrency, getWhatsAppUrl, cn } from "@/lib/utils";
+import { formatCurrency, getWhatsAppUrl, cn, toManausISO, formatTime } from "@/lib/utils";
 import { getHorariosDisponiveis } from "@/lib/queries/indisponibilidades";
 import { PaymentSelector } from "@/components/ui/payment-selector";
 import type { Perfil, Servico } from "@/types/database";
@@ -182,10 +182,8 @@ export function AgendamentoModal({
 
     try {
       // Extrai horário "HH:mm" (seja slot formato direto "HH:mm" ou ISO)
-      const horaStr = data.slot.length === 5 ? data.slot : format(new Date(data.slot), "HH:mm");
-      const [hh, mm] = horaStr.split(":");
-      const localDt = new Date(`${data.data}T${hh}:${mm}:00`);
-      const dataHoraIso = localDt.toISOString();
+      const horaStr = data.slot.length === 5 ? data.slot : formatTime(data.slot);
+      const dataHoraIso = toManausISO(data.data, horaStr);
 
       const response = await fetch("/api/agendamentos/publico", {
         method: "POST",

@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { getHorariosDisponiveis } from "@/lib/queries/indisponibilidades";
-import { formatDateTime, cn } from "@/lib/utils";
+import { formatDateTime, cn, toManausISO } from "@/lib/utils";
 import type { Agendamento } from "@/types/database";
 
 const schema = z.object({
@@ -96,7 +96,7 @@ export function ReagendamentoModal({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Não autenticado");
 
-      const novaDataHora = new Date(`${data.data}T${data.hora}:00`).toISOString();
+      const novaDataHora = toManausISO(data.data, data.hora);
 
       const { error } = await supabase.rpc("reagendar_agendamento", {
         p_agendamento_id: agendamento.id,

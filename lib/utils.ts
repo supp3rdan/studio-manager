@@ -1,7 +1,9 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { format, parseISO } from "date-fns";
-import { ptBR } from "date-fns/locale";
+
+/** Fuso horário padrão do sistema: Manaus / AM (UTC-4) */
+export const TIMEZONE_DEFAULT = "America/Manaus";
+export const TIMEZONE_OFFSET = "-04:00";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -15,16 +17,79 @@ export function formatCurrency(value: number | null | undefined): string {
   }).format(value);
 }
 
-export function formatDate(dateString: string | null | undefined): string {
+/** Formata data para dd/MM/yyyy no fuso de Manaus */
+export function formatDate(dateString: string | Date | null | undefined): string {
   if (!dateString) return "—";
-  return format(parseISO(dateString), "dd/MM/yyyy", { locale: ptBR });
+  try {
+    const d = typeof dateString === "string" ? new Date(dateString) : dateString;
+    if (isNaN(d.getTime())) return "—";
+    return new Intl.DateTimeFormat("pt-BR", {
+      timeZone: TIMEZONE_DEFAULT,
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(d);
+  } catch {
+    return String(dateString);
+  }
 }
 
-export function formatDateTime(dateString: string | null | undefined): string {
+/** Formata horário para HH:mm no fuso de Manaus */
+export function formatTime(dateString: string | Date | null | undefined): string {
   if (!dateString) return "—";
-  return format(parseISO(dateString), "dd/MM/yyyy 'às' HH:mm", {
-    locale: ptBR,
-  });
+  try {
+    const d = typeof dateString === "string" ? new Date(dateString) : dateString;
+    if (isNaN(d.getTime())) return "—";
+    return new Intl.DateTimeFormat("pt-BR", {
+      timeZone: TIMEZONE_DEFAULT,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(d);
+  } catch {
+    return String(dateString);
+  }
+}
+
+/** Formata data e horário para dd/MM/yyyy às HH:mm no fuso de Manaus */
+export function formatDateTime(dateString: string | Date | null | undefined): string {
+  if (!dateString) return "—";
+  try {
+    const d = typeof dateString === "string" ? new Date(dateString) : dateString;
+    if (isNaN(d.getTime())) return "—";
+    const dataFmt = formatDate(d);
+    const horaFmt = formatTime(d);
+    return `${dataFmt} às ${horaFmt}`;
+  } catch {
+    return String(dateString);
+  }
+}
+
+/** Retorna string YYYY-MM-DD no fuso de Manaus */
+export function getManausDateString(dateString: string | Date): string {
+  const d = typeof dateString === "string" ? new Date(dateString) : dateString;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIMEZONE_DEFAULT,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+/** Retorna a hora (0-23) no fuso de Manaus */
+export function getManausHour(dateString: string | Date): number {
+  const horaStr = formatTime(dateString);
+  const hourNum = Number(horaStr.split(":")[0]);
+  return isNaN(hourNum) ? 0 : hourNum;
+}
+
+/** Cria um ISO timestamp com offset explícito de Manaus (-04:00) */
+export function toManausISO(dataStr: string, horaStr?: string | null): string {
+  if (horaStr && horaStr.trim()) {
+    const horaLimpa = horaStr.trim().length === 5 ? horaStr.trim() : horaStr.trim().slice(0, 5);
+    return new Date(`${dataStr}T${horaLimpa}:00${TIMEZONE_OFFSET}`).toISOString();
+  }
+  return new Date(`${dataStr}T12:00:00${TIMEZONE_OFFSET}`).toISOString();
 }
 
 export function formatWhatsApp(whatsapp: string | null | undefined): string {

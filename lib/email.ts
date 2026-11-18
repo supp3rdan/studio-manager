@@ -1,5 +1,4 @@
-import { format, parseISO } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatDateTime } from "@/lib/utils";
 
 interface EmailAgendamentoParams {
   clienteNome: string;
@@ -26,7 +25,7 @@ function formatBrl(valor: number): string {
 
 function formatData(iso: string): string {
   try {
-    return format(parseISO(iso), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+    return formatDateTime(iso);
   } catch {
     return iso;
   }

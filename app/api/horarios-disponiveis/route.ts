@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
-const TIMEZONE = "America/Sao_Paulo";
+const TIMEZONE = "America/Manaus";
 
 function getApiClient() {
   const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "");
@@ -22,13 +22,13 @@ function toMinutes(hhmm: string): number {
   return h * 60 + m;
 }
 
-/** Formata data para "YYYY-MM-DD" no fuso de São Paulo */
+/** Formata data para "YYYY-MM-DD" no fuso de Manaus */
 function getLocalDateString(isoOrDate: string | Date): string {
   const d = typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate;
   return d.toLocaleDateString("en-CA", { timeZone: TIMEZONE });
 }
 
-/** Formata horário para "HH:mm" no fuso de São Paulo */
+/** Formata horário para "HH:mm" no fuso de Manaus */
 function getLocalTimeString(isoOrDate: string | Date): string {
   const d = typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate;
   return d.toLocaleTimeString("pt-BR", {
@@ -95,9 +95,9 @@ export async function GET(request: Request) {
 
     // ── 2. Busca agendamentos ocupados ('Agendado', 'Confirmado', 'Concluído') ──
     // Intervalo seguro de busca (24 horas antes e depois da data requisitada)
-    const startRange = new Date(`${dataStr}T00:00:00-03:00`);
+    const startRange = new Date(`${dataStr}T00:00:00-04:00`);
     startRange.setHours(startRange.getHours() - 6);
-    const endRange = new Date(`${dataStr}T23:59:59-03:00`);
+    const endRange = new Date(`${dataStr}T23:59:59-04:00`);
     endRange.setHours(endRange.getHours() + 6);
 
     let agendamentosOcupados: { data_hora: string; duracao_minutos: number }[] = [];

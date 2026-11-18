@@ -43,7 +43,7 @@ import {
   getIndisponibilidades,
   deleteIndisponibilidade,
 } from "@/lib/queries/indisponibilidades";
-import { formatCurrency, getCategoriaColor, cn } from "@/lib/utils";
+import { formatCurrency, getCategoriaColor, cn, formatDate, formatTime } from "@/lib/utils";
 import type { Servico, CategoriaServico, Indisponibilidade } from "@/types/database";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -524,14 +524,14 @@ export default function ServicosPage() {
                           `Toda ${DIAS_SEMANA[item.dia_semana ?? 0]}`
                         ) : (
                           <>
-                            {format(parseISO(item.data_inicio), "dd/MM/yyyy", { locale: ptBR })}
+                            {formatDate(item.data_inicio)}
                             {item.tipo === "horario" && item.data_fim && (
-                              ` · ${format(parseISO(item.data_inicio), "HH:mm")} – ${format(parseISO(item.data_fim), "HH:mm")}`
+                              ` · ${formatTime(item.data_inicio)} – ${formatTime(item.data_fim)}`
                             )}
                           </>
                         )}
                         {item.tipo === "horario" && item.recorrente && item.data_fim && (
-                          ` · ${format(parseISO(item.data_inicio), "HH:mm")} – ${format(parseISO(item.data_fim), "HH:mm")}`
+                          ` · ${formatTime(item.data_inicio)} – ${formatTime(item.data_fim)}`
                         )}
                       </p>
                     </div>

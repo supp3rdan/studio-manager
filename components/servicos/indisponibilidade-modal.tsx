@@ -29,7 +29,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, toManausISO } from "@/lib/utils";
 import { createIndisponibilidade } from "@/lib/queries/indisponibilidades";
 
 const schema = z
@@ -110,31 +110,20 @@ export function IndisponibilidadeModal({ open, onClose }: IndisponibilidadeModal
       let dataFim: string | null = null;
 
       if (data.recorrente) {
-        // Para recorrente, usamos um anchor date genérico — só o dia_semana importa
-        const today = new Date();
-        dataInicio = today.toISOString();
+        // Para recorrente, usamos um anchor date fixo no fuso de Manaus — só a hora e dia_semana importam
+        const anchorDate = "2000-01-01";
+        dataInicio = toManausISO(anchorDate, data.tipo === "horario" ? (data.hora_inicio || "08:00") : "00:00");
         if (data.tipo === "horario") {
-          const [hI, mI] = (data.hora_inicio || "08:00").split(":").map(Number);
-          const [hF, mF] = (data.hora_fim || "09:00").split(":").map(Number);
-          const start = new Date();
-          start.setHours(hI, mI, 0, 0);
-          const end = new Date();
-          end.setHours(hF, mF, 0, 0);
-          dataInicio = start.toISOString();
-          dataFim = end.toISOString();
+          dataFim = toManausISO(anchorDate, data.hora_fim || "09:00");
         }
       } else {
         const dateStr = data.data!;
         if (data.tipo === "dia_inteiro") {
-          dataInicio = new Date(`${dateStr}T00:00:00`).toISOString();
+          dataInicio = toManausISO(dateStr, "00:00");
           dataFim = null;
         } else {
-          const [hI, mI] = (data.hora_inicio || "08:00").split(":").map(Number);
-          const [hF, mF] = (data.hora_fim || "09:00").split(":").map(Number);
-          const start = new Date(`${dateStr}T${String(hI).padStart(2,"0")}:${String(mI).padStart(2,"0")}:00`);
-          const end = new Date(`${dateStr}T${String(hF).padStart(2,"0")}:${String(mF).padStart(2,"0")}:00`);
-          dataInicio = start.toISOString();
-          dataFim = end.toISOString();
+          dataInicio = toManausISO(dateStr, data.hora_inicio || "08:00");
+          dataFim = toManausISO(dateStr, data.hora_fim || "09:00");
         }
       }
 
